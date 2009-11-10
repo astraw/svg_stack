@@ -1,0 +1,163 @@
+#!/usr/bin/env python
+from lxml import etree # Ubuntu Karmic package: python-lxml
+import sys
+from optparse import OptionParser
+
+UNITS = ['pt','px','in']
+PT2IN = 1.0/72.0
+IN2PT = 72.0
+PT2PX = 1.25
+PX2PT = 1.0/1.25
+
+def get_unit_attr(value):
+    # coordinate handling from http://www.w3.org/TR/SVG11/coords.html#Units
+    units = None # default (user)
+    for unit_name in UNITS:
+        if value.endswith(unit_name):
+            units = unit_name
+            value = value[:-len(unit_name)]
+            break
+    val_float = float(value) # this will fail if units str not parsed
+    return val_float, units
+
+def convert_to_pixels( val, units):
+    if units == 'px' or units is None:
+        val_px = val
+    elif units == 'pt':
+        val_px = val*PT2PX
+    elif units == 'in':
+        val_px = val*IN2PT*PT2PX
+    else:
+        raise ValueError('unsupport unit conversion to pixels: %s'%units)
+    return val_px
+
+def fix_ids( elem, prefix ):
+    ns = '{http://www.w3.org/2000/svg}'
+
+    if elem.tag.startswith(ns):
+
+        tag = elem.tag[len(ns):]
+
+        if 'id' in elem.attrib:
+            elem.attrib['id'] = prefix + elem.attrib['id']
+
+        # fix references (See http://www.w3.org/TR/SVGTiny12/linking.html#IRIReference )
+
+        attribs = ['{http://www.w3.org/1999/xlink}href']
+
+        for attrib in attribs:
+            value = elem.attrib.get(attrib,None)
+            if value is not None:
+
+                if attrib.startswith('{http://www.w3.org/1999/xlink}'):
+                    relIRI = False
+                else:
+                    relIRI = True
+
+                if (not relIRI) and value.startswith('#'): # local IRI, change
+                    iri = value[1:]
+                    value = '#' + prefix + iri
+                    elem.attrib[attrib] = value
+                elif relIRI and value.startswith('url(#') and value.endswith(')'): # local IRI, change
+                    iri = value[5:-1]
+                    value = 'url(#' + prefix + iri + ')'
+                    elem.attrib[attrib] = value
+
+        # Do same for children
+
+    for child in elem:
+        fix_ids(child,prefix)
+    return elem
+
+def main():
+    usage = '%prog FILE [options]'
+
+    parser = OptionParser(usage)
+    parser.add_option("--margin",type='str',default=None)
+    parser.add_option("--direction",type='str',
+                      default='vertical',
+                      help='horizontal or vertical (or h or v)')
+    (options, args) = parser.parse_args()
+    fnames = args
+
+    if options.direction.lower().startswith('v'):
+        direction = 'vertical'
+    elif options.direction.lower().startswith('h'):
+        direction = 'horizontal'
+    else:
+        raise ValueError('unknown direction %s'%options.direction)
+
+    if options.margin is not None:
+        margin_px = convert_to_pixels(*get_unit_attr(options.margin))
+    else:
+        margin_px = 0
+
+    if 0:
+        fd = open('tmp.svg',mode='w')
+    else:
+        fd = sys.stdout
+    root = etree.Element("svg")
+    root.attrib['version']='1.1'
+    cum_height_px = 0
+    cum_width_px = 0
+#    cum_direction_px = 0
+    max_orthogonal_direction_px = 0
+    for fname_num,fname in enumerate(fnames):
+        elem = etree.parse(fname).getroot()
+        height, height_units = get_unit_attr(elem.get('height'))
+        width, width_units = get_unit_attr(elem.get('width'))
+        width_px = convert_to_pixels( width, width_units)
+        height_px = convert_to_pixels( height, height_units)
+
+        if direction=='vertical':
+            dir_px = height_px
+            orthogonal_direction_px = width_px
+        else:
+            dir_px = width_px
+            orthogonal_direction_px = height_px
+        max_orthogonal_direction_px = max(max_orthogonal_direction_px, orthogonal_direction_px)
+
+        elem.attrib["x"] = repr(cum_width_px)
+        elem.attrib["y"] = repr(cum_height_px) # perform y placement
+        elem.attrib["width"] = repr(width_px)
+        elem.attrib["height"] = repr(height_px)
+
+        fix_ids( elem, fname+':%d:'%fname_num )
+        root.append( elem )
+
+        if direction=='vertical':
+            cum_height_px += height_px + margin_px
+        else:
+            cum_width_px += width_px + margin_px
+
+    if direction=='vertical':
+        cum_height_px -= margin_px
+    else:
+        cum_width_px -= margin_px
+
+    if direction=='vertical':
+        root.attrib["width"] = repr(max_orthogonal_direction_px)
+        root.attrib["height"] = repr(cum_height_px)
+        user_width = max_orthogonal_direction_px
+        user_height = cum_height_px
+
+    else:
+        root.attrib["height"] = repr(max_orthogonal_direction_px)
+        root.attrib["width"] = repr(cum_width_px)
+        user_width = cum_width_px
+        user_height = max_orthogonal_direction_px
+    root.attrib["viewBox"] = '0 0 %f %f'%(user_width,user_height)
+    root.attrib['xmlns'] = "http://www.w3.org/2000/svg"
+
+    header_str = """<?xml version="1.0" standalone="no"?>
+    <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+      "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+      <!-- Created with svg_vstack -->
+    """
+
+    fd.write(header_str)
+    fd.write( etree.tostring(root, pretty_print=True ))
+    fd.close()
+
+if __name__=='__main__':
+    main()
