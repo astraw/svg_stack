@@ -100,7 +100,18 @@ def main():
         fd = open('tmp.svg',mode='w')
     else:
         fd = sys.stdout
+
+    # get all required namespaces and prefixes
     NSMAP = {None : 'http://www.w3.org/2000/svg' }
+    origelems = []
+    for fname in fnames:
+        origelem = etree.parse(fname).getroot()
+        assert origelem.tag == '{http://www.w3.org/2000/svg}svg'
+        for key,value in origelem.nsmap.iteritems():
+            if key in NSMAP:
+                assert value == NSMAP[key]
+        NSMAP.update( origelem.nsmap )
+        origelems.append(origelem)
 
     root = etree.Element('{http://www.w3.org/2000/svg}svg',
                          nsmap=NSMAP)
@@ -109,10 +120,7 @@ def main():
     cum_height_px = 0
     cum_width_px = 0
     max_orthogonal_direction_px = 0
-    for fname_num,fname in enumerate(fnames):
-        origelem = etree.parse(fname).getroot()
-
-        assert origelem.tag == '{http://www.w3.org/2000/svg}svg'
+    for fname_num, origelem in enumerate(origelems):
 
         elem = etree.SubElement(root,'{http://www.w3.org/2000/svg}g')
         elem.attrib['id'] = fname+':%d'%fname_num
