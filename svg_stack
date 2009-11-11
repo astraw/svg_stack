@@ -137,13 +137,13 @@ def main():
         fix_ids( elem, fname+':%d:'%fname_num )
 
         translate_x = 0
-        tranxlate_y = 0
+        translate_y = 0
         if direction=='vertical':
             translate_y = cum_height_px
             cum_height_px += height_px + margin_px
         else:
             translate_x = cum_width_px
-            cum_width_px += width_px + margin_p
+            cum_width_px += width_px + margin_px
         elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
 
         root.append( elem )
