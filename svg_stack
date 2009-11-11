@@ -96,16 +96,25 @@ def main():
         fd = open('tmp.svg',mode='w')
     else:
         fd = sys.stdout
-    root = etree.Element("svg")
+    NSMAP = {None : 'http://www.w3.org/2000/svg' }
+
+    root = etree.Element('{http://www.w3.org/2000/svg}svg',
+                         nsmap=NSMAP)
+
     root.attrib['version']='1.1'
     cum_height_px = 0
     cum_width_px = 0
-#    cum_direction_px = 0
     max_orthogonal_direction_px = 0
     for fname_num,fname in enumerate(fnames):
-        elem = etree.parse(fname).getroot()
-        height, height_units = get_unit_attr(elem.get('height'))
-        width, width_units = get_unit_attr(elem.get('width'))
+        origelem = etree.parse(fname).getroot()
+
+        assert origelem.tag == '{http://www.w3.org/2000/svg}svg'
+
+        elem = etree.SubElement(root,'{http://www.w3.org/2000/svg}g')
+        elem.attrib['id'] = fname+':%d'%fname_num
+
+        height, height_units = get_unit_attr(origelem.get('height'))
+        width, width_units = get_unit_attr(origelem.get('width'))
         width_px = convert_to_pixels( width, width_units)
         height_px = convert_to_pixels( height, height_units)
 
@@ -117,18 +126,23 @@ def main():
             orthogonal_direction_px = height_px
         max_orthogonal_direction_px = max(max_orthogonal_direction_px, orthogonal_direction_px)
 
-        elem.attrib["x"] = repr(cum_width_px)
-        elem.attrib["y"] = repr(cum_height_px) # perform y placement
-        elem.attrib["width"] = repr(width_px)
-        elem.attrib["height"] = repr(height_px)
+        # copy svg contents into new group
+        for child in origelem:
+            elem.append(child)
 
         fix_ids( elem, fname+':%d:'%fname_num )
-        root.append( elem )
 
+        translate_x = 0
+        tranxlate_y = 0
         if direction=='vertical':
+            translate_y = cum_height_px
             cum_height_px += height_px + margin_px
         else:
-            cum_width_px += width_px + margin_px
+            translate_x = cum_width_px
+            cum_width_px += width_px + margin_p
+        elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
+
+        root.append( elem )
 
     if direction=='vertical':
         cum_height_px -= margin_px
@@ -147,7 +161,6 @@ def main():
         user_width = cum_width_px
         user_height = max_orthogonal_direction_px
     root.attrib["viewBox"] = '0 0 %f %f'%(user_width,user_height)
-    root.attrib['xmlns'] = "http://www.w3.org/2000/svg"
 
     header_str = """<?xml version="1.0" standalone="no"?>
     <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
