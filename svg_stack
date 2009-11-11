@@ -3,6 +3,8 @@ from lxml import etree # Ubuntu Karmic package: python-lxml
 import sys
 from optparse import OptionParser
 
+VERSION = '0.0.1'
+
 UNITS = ['pt','px','in']
 PT2IN = 1.0/72.0
 IN2PT = 72.0
@@ -72,8 +74,10 @@ def fix_ids( elem, prefix ):
 def main():
     usage = '%prog FILE [options]'
 
-    parser = OptionParser(usage)
-    parser.add_option("--margin",type='str',default=None)
+    parser = OptionParser(usage, version=VERSION)
+    parser.add_option("--margin",type='str',
+                      help='size of margin (in px units)',
+                      default=None)
     parser.add_option("--direction",type='str',
                       default='vertical',
                       help='horizontal or vertical (or h or v)')
