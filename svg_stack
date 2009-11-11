@@ -54,7 +54,7 @@ def convert_to_pixels( val, units):
         raise ValueError('unsupport unit conversion to pixels: %s'%units)
     return val_px
 
-def fix_ids( elem, prefix ):
+def fix_ids( elem, prefix, level=0 ):
     ns = '{http://www.w3.org/2000/svg}'
 
     if elem.tag.startswith(ns):
@@ -89,7 +89,7 @@ def fix_ids( elem, prefix ):
         # Do same for children
 
     for child in elem:
-        fix_ids(child,prefix)
+        fix_ids(child,prefix,level=level+1)
     return elem
 
 def main():
