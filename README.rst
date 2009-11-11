@@ -10,7 +10,8 @@ and blue_triangle.svg::
 
   svg_stack --direction=h --margin=100 red_ball.svg blue_triangle.svg > shapes.svg
 
-will stack them horizontally with a 100 px margin between them.
+will stack them horizontally with a 100 px margin between them. The
+result will be in a file called shapes.svg.
 
 Meta-data
 ---------
