@@ -18,6 +18,8 @@ Meta-data
  * License: MIT (see source code of svg_stack for full license)
  * Author: Andrew D. Straw
  * Contact: strawman@astraw.com
+ * Homepage: http://github.com/astraw/svg_stack
+ * Issue tracker: http://github.com/astraw/svg_stack/issues
 
 Usage
 -----
