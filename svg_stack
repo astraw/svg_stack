@@ -172,7 +172,6 @@ def main():
         root.attrib["width"] = repr(cum_width_px)
         user_width = cum_width_px
         user_height = max_orthogonal_direction_px
-    root.attrib["viewBox"] = '0 0 %f %f'%(user_width,user_height)
 
     header_str = """<?xml version="1.0" standalone="no"?>
     <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
