@@ -204,7 +204,7 @@ stdout.
     header_str = """<?xml version="1.0" standalone="no"?>
     <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
       "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-      <!-- Created with svg_vstack -->
+      <!-- Created with svg_stack http://github.com/astraw/svg_stack -->
     """
 
     fd.write(header_str)
