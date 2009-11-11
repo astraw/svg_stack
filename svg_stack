@@ -138,7 +138,13 @@ stdout.
         for key,value in origelem.nsmap.iteritems():
             if key in NSMAP:
                 assert value == NSMAP[key]
-        NSMAP.update( origelem.nsmap )
+                # Already in namespace dictionary
+                continue
+            elif key == 'svg':
+                assert value == NSMAP[None]
+                # svg is the default namespace - don't insert again.
+                continue
+            NSMAP[key] = value
         origelems.append(origelem)
 
     root = etree.Element('{http://www.w3.org/2000/svg}svg',
