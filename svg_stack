@@ -66,10 +66,9 @@ def fix_ids( elem, prefix, level=0 ):
 
         # fix references (See http://www.w3.org/TR/SVGTiny12/linking.html#IRIReference )
 
-        attribs = ['{http://www.w3.org/1999/xlink}href']
-
-        for attrib in attribs:
+        for attrib in elem.attrib.keys():
             value = elem.attrib.get(attrib,None)
+
             if value is not None:
 
                 if attrib.startswith('{http://www.w3.org/1999/xlink}'):
