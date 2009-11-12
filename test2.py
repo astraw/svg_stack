@@ -38,3 +38,8 @@ subprocess.check_call(
     #'xmllint --valid --dtdvalid http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd --nowarning --noout circles.svg',
     'xmllint --valid --nowarning --noout circles.svg',
     shell=True)
+
+# check output
+subprocess.check_call(
+    'rasterizer circles.svg',
+    shell=True)

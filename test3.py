@@ -10,3 +10,7 @@ subprocess.check_call(
 # Inkscape files don't pass xmllint -- don't test
 
 print 'You should manually verify that shapes_test.svg looks exactly the same as shapes.svg'
+
+subprocess.check_call(
+    'rasterizer shapes_test.svg',
+    shell=True)
