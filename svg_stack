@@ -159,6 +159,7 @@ stdout.
     max_orthogonal_direction_px = 0
     for fname_num, origelem in enumerate(origelems):
 
+        fix_id_prefix = fname+':%d:'%fname_num
         elem = etree.SubElement(root,'{http://www.w3.org/2000/svg}g')
         elem.attrib['id'] = fname+':%d'%fname_num
 
@@ -181,6 +182,7 @@ stdout.
                 if child.tag == '{http://www.w3.org/2000/svg}defs':
                     # copy into root_defs, not into sub-group
                     for subchild in child:
+                        fix_ids( subchild, fix_id_prefix )
                         root_defs.append( subchild )
                     continue
                 elif child.tag == '{http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd}:namedview':
@@ -191,7 +193,7 @@ stdout.
                     continue
             elem.append(child)
 
-        fix_ids( elem, fname+':%d:'%fname_num )
+        fix_ids( elem, fix_id_prefix )
 
         translate_x = 0
         translate_y = 0
