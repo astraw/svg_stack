@@ -39,7 +39,8 @@ Usage
   Options:
     --version             show program's version number and exit
     -h, --help            show this help message and exit
-    --margin=MARGIN       size of margin (in px units)
+    --margin=MARGIN       size of margin (in any units, px default)
+    --inkscape            attempt to work with Inkscape files
     --direction=DIRECTION
                           horizontal or vertical (or h or v)
 
