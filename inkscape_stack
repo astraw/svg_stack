@@ -1,0 +1,117 @@
+#!/usr/bin/env python
+
+## Copyright (c) 2009 Andrew D. Straw
+
+## Permission is hereby granted, free of charge, to any person obtaining a copy
+## of this software and associated documentation files (the "Software"), to deal
+## in the Software without restriction, including without limitation the rights
+## to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+## copies of the Software, and to permit persons to whom the Software is
+## furnished to do so, subject to the following conditions:
+
+## The above copyright notice and this permission notice shall be included in
+## all copies or substantial portions of the Software.
+
+## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+## IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+## FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+## AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+## LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+## OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+## THE SOFTWARE.
+
+import sys
+import subprocess
+from optparse import OptionParser
+import tempfile
+
+VERSION = '0.0.1'
+
+def main():
+    usage = '''%prog FILE1 [FILE2] [...] [options]
+
+concatenate Inkscape SVG files
+
+This will concatenate FILE1, FILE2, ... to a new svg file printed to
+stdout.
+
+'''
+
+    parser = OptionParser(usage, version=VERSION)
+    parser.add_option("--margin",type='str',
+                      help='size of margin (in any units, px default)',
+                      default=None)
+    parser.add_option("--direction",type='str',
+                      default='vertical',
+                      help='horizontal or vertical (or h or v)')
+    (options, args) = parser.parse_args()
+    fnames = args
+
+    if options.direction.lower().startswith('v'):
+        direction = 'vertical'
+    elif options.direction.lower().startswith('h'):
+        direction = 'horizontal'
+    else:
+        raise ValueError('unknown direction %s'%options.direction)
+
+    if not direction == 'horizontal':
+        raise NotImplementedError('only horizontal stacking currently implemented')
+
+    if options.margin is not None:
+        margin_px = convert_to_pixels(*get_unit_attr(options.margin))
+    else:
+        margin_px = 0
+
+    if not margin_px==0:
+        raise NotImplementedError('only 0 margin')
+
+
+    args = [
+        'UnlockAllInAllLayers',
+        'UnhideAllInAllLayers',
+        'EditSelectAllInAllLayers',
+        'SelectionGroup',
+        'FileSave',
+        'FileClose',
+        ]
+    args = [('--verb='+a) for a in args]
+
+    grouped_fnames = []
+    temp_fnames = []
+    try:
+        for fname in fnames:
+            print >> sys.stderr, fname
+            # subprocess.check_call('inkscape -S %s'%fname,
+            #                       shell=True,
+            #                       )
+
+            f = tempfile.NamedTemporaryFile(delete=False)
+            temp_fnames.append( f.name )
+
+            f.write( open(fname).read() )
+            f.close()
+
+            print f.name
+            subprocess.check_call('inkscape %s %s'%(f.name,
+                                                    ' '.join(args),
+                                                    ),
+                                  shell=True,
+                                  )
+            grouped_fnames.append( f.name )
+
+        # join grouped files
+        f = tempfile.NamedTemporaryFile(delete=False)
+        temp_fnames.append( f.name )
+        f.close()
+
+        for fname in grouped_fnames:
+            
+
+    finally:
+        if 0:
+            # remove temporary files
+            for fname in temp_fnames:
+                os.unlink(fname)
+
+if __name__=='__main__':
+    main()
