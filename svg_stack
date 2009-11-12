@@ -201,8 +201,25 @@ stdout.
         else:
             translate_x = cum_width_px
             cum_width_px += width_px + margin_px
-        elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
 
+        orig_viewBox = origelem.get('viewBox')
+        if orig_viewBox is not None:
+            # split by comma or whitespace
+            vb_tup = orig_viewBox.split(',')
+            vb_tup = [c.strip() for c in vb_tup]
+            if len(vb_tup)==1:
+                # not separated by commas
+                vb_tup = orig_viewBox.split()
+            assert len(vb_tup)==4
+            vb_tup = [float(v) for v in vb_tup]
+            vbminx, vbminy, vbwidth, vbheight = vb_tup
+            sx = width_px / vbwidth
+            sy = height_px / vbheight
+            tx = translate_x - vbminx
+            ty = translate_y - vbminy
+            elem.attrib['transform'] = 'matrix(%s,0,0,%s,%s,%s)'%(sx,sy,tx,ty)
+        else:
+            elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
         root.append( elem )
 
     if direction=='vertical':
