@@ -132,6 +132,8 @@ class SVGFile(object):
         width, width_units = get_unit_attr(self._root.get('width'))
         self._width_px = convert_to_pixels( width, width_units)
         self._height_px = convert_to_pixels( height, height_units)
+        self._orig_width_px = self._width_px
+        self._orig_height_px = self._height_px
         self._coord = None # unassigned
 
     def get_root(self):
@@ -139,6 +141,10 @@ class SVGFile(object):
 
     def get_size(self,min_size=None):
         return Size(self._width_px,self._height_px)
+
+    def _set_size(self,size):
+        self._width_px = size.width
+        self._height_px = size.height
 
     def _set_coord(self,coord):
         self._coord = coord
@@ -197,8 +203,9 @@ class LayoutAccumulator(object):
             elem = etree.SubElement(root,'{http://www.w3.org/2000/svg}g')
             elem.attrib['id'] = 'id%d'%fname_num
 
-            width_px = svgfile._width_px
-            height_px = svgfile._height_px
+            elem_sz = svgfile.get_size()
+            width_px = elem_sz.width
+            height_px = elem_sz.height
 
             # copy svg contents into new group
             for child in origelem:
@@ -221,6 +228,10 @@ class LayoutAccumulator(object):
 
             translate_x = svgfile._coord[0]
             translate_y = svgfile._coord[1]
+            if svgfile._orig_width_px != width_px:
+                raise NotImplementedError('rescaling width not implemented')
+            if svgfile._orig_height_px != height_px:
+                raise NotImplementedError('rescaling height not implemented')
             orig_viewBox = origelem.get('viewBox')
             if orig_viewBox is not None:
                 # split by comma or whitespace
@@ -252,10 +263,22 @@ class Size(object):
         self.width=width
         self.height=height
 
+# directions for BoxLayout
 LeftToRight = 'LeftToRight'
 RightToLeft = 'RightToLeft'
 TopToBottom = 'TopToBottom'
 BottomToTop = 'BottomToTop'
+
+# alignment values
+AlignLeft = 0x01
+AlignRight = 0x02
+AlignHCenter = 0x04
+
+AlignTop = 0x020
+AlignBottom = 0x040
+AlignVCenter = 0x080
+
+AlignCenter = AlignHCenter | AlignVCenter
 
 class Layout(object):
     def __init__(self, parent=None):
@@ -308,9 +331,10 @@ class BoxLayout(Layout):
 
         cum_dim += self._contents_margins # first margin
         item_normcoords = []
+        item_sizes = []
         for item_number,(item,stretch,alignment) in enumerate(self._items):
             item_size = item.get_size(min_size=dim_min_size)
-
+            item_sizes.append( item_size )
             item_normcoords.append( (cum_dim, self._contents_margins) )
 
             if self._direction in [LeftToRight, RightToLeft]:
@@ -337,32 +361,84 @@ class BoxLayout(Layout):
         # Step 3: calculate coordinates of each item
 
         if expansion:
+            # required size less than minimum size
             item_normcoords = None # invalid
+            # need to incorporate stretch data here
             raise NotImplementedError('expanding box not yet done')
-        else:
-            # required size is larger than minimum size
-            if self._direction in [LeftToRight, RightToLeft]:
-                size = Size(cum_dim, max_orth_dim)
-            else:
-                size = Size(max_orth_dim, cum_dim)
+        # else required size is larger than minimum size
 
-            coords = []
-            for ic in item_normcoords:
-                if self._direction == LeftToRight:
-                    coords.append( (ic[0],ic[1]) )
-                elif self._direction == TopToBottom:
-                    coords.append( (ic[1],ic[0]) )
-                else:
-                    raise NotImplementedError(
-                        'direction %s not implemented'%self._direction)
-            del item_normcoords
+        if self._direction in [LeftToRight, RightToLeft]:
+            size = Size(cum_dim, max_orth_dim)
+        else:
+            size = Size(max_orth_dim, cum_dim)
+
+        coords = []
+        for ic in item_normcoords:
+            if self._direction == LeftToRight:
+                coords.append( (ic[0],ic[1]) )
+            elif self._direction == TopToBottom:
+                coords.append( (ic[1],ic[0]) )
+            else:
+                raise NotImplementedError(
+                    'direction %s not implemented'%self._direction)
+        del item_normcoords
 
         # Step 4: set coordinates of each item
-        for (item, stretch, alignment), coord in zip(self._items, coords):
-            item._set_coord( (self._coord[0]+coord[0], self._coord[1]+coord[1]))
+        for i in range(len(self._items)):
+            coord = coords[i]
+            (item, stretch, alignment) = self._items[i]
+            box_pos = (self._coord[0]+coord[0], self._coord[1]+coord[1])
+            item_size = item_sizes[i]
+            if self._direction in [LeftToRight, RightToLeft]:
+                # expand vertically
+                box_size = Size(item_size.width, max_orth_dim)
+            else:
+                # expand horizontally
+                box_size = Size(max_orth_dim, item_size.height)
+            item_pos, item_size = self._calc_box( box_pos, box_size, item_size,
+                                                  alignment )
+            item._set_coord( item_pos )
+            item._set_size( item_size )
+            tmp = item.get_size()
 
         self._size = size
         return size
+
+    def _calc_box(self, in_pos, in_sz, item_sz, alignment):
+        if (AlignLeft & alignment):
+            left = in_pos[0]
+            width = item_sz.width
+        elif (AlignRight & alignment):
+            left = in_pos[0]+in_sz.width-item_sz.width
+            width = item_sz.width
+        elif (AlignHCenter & alignment):
+            left = in_pos[0]+0.5*(in_sz.width-item_sz.width)
+            width = item_sz.width
+        else:
+            # expand
+            left = in_pos[0]
+            width = in_sz.width
+
+        if (AlignTop & alignment):
+            top = in_pos[1]
+            height = item_sz.height
+        elif (AlignBottom & alignment):
+            top = in_pos[1]+in_sz.height-item_sz.height
+            height = item_sz.height
+        elif (AlignVCenter & alignment):
+            top = in_pos[1]+0.5*(in_sz.height-item_sz.height)
+            height = item_sz.height
+        else:
+            # expand
+            top = in_pos[1]
+            height = in_sz.height
+
+        pos = (left,top)
+        size = Size(width,height)
+        return pos,size
+
+    def _set_size(self, size):
+        self._size = size
 
     def setSpacing(self,spacing):
         self._spacing = spacing
@@ -433,7 +509,7 @@ stdout.
         layout = HBoxLayout()
 
     for fname in fnames:
-        layout.addSVG(fname)
+        layout.addSVG(fname,alignment=AlignCenter)
 
     layout.setSpacing(margin_px)
     doc.setLayout(layout)
