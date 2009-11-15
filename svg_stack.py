@@ -24,7 +24,7 @@ from lxml import etree # Ubuntu Karmic package: python-lxml
 import sys
 from optparse import OptionParser
 
-VERSION = '0.0.1'
+VERSION = '0.0.1' # keep in sync with setup.py
 
 UNITS = ['pt','px','in']
 PT2IN = 1.0/72.0
