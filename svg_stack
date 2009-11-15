@@ -91,6 +91,237 @@ def fix_ids( elem, prefix, level=0 ):
         fix_ids(child,prefix,level=level+1)
     return elem
 
+header_str = """<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Created with svg_stack (http://github.com/astraw/svg_stack) -->
+"""
+
+# ------------------------------------------------------------------
+class Document(object):
+    def __init__(self):
+        self._layout = None
+    def setLayout(self,layout):
+        self._layout = layout
+    def save(self,fileobj,**kwargs):
+        if self._layout is None:
+            raise ValueError('No layout, cannot save.')
+        accum = LayoutAccumulator(**kwargs)
+        self._layout.render(accum)
+        if isinstance(fileobj,file):
+            fd = fileobj
+            close = False
+        else:
+            fd = open(fileobj,mode='w')
+            close = True
+        buf = accum.tostring(pretty_print=True)
+
+        fd.write(header_str)
+        fd.write( buf )
+        if close:
+            fd.close()
+
+class SVGFile(object):
+    def __init__(self,fname):
+        self._fname = fname
+
+class LayoutAccumulator(object):
+    def __init__(self,inkscape=False):
+        self._inkscape = inkscape
+        self._svgfiles = []
+
+        # These have to be moved deeper into the layout:
+        self._spacing = 0
+        self._direction = None
+
+    def add_svg(self,svgfile):
+        assert isinstance(svgfile,SVGFile)
+        if svgfile in self._svgfiles:
+            raise ValueError('cannot accumulate SVGFile instance twice')
+        self._svgfiles.append( svgfile )
+
+    def tostring(self, **kwargs):
+        root = self._make_finalized_root()
+        return etree.tostring(root,**kwargs)
+
+    def set_spacing( self, spacing ):
+        self._spacing = spacing
+
+    def set_direction( self, direction ):
+        self._direction = direction
+
+    def _make_finalized_root(self):
+        direction = self._direction
+        margin_px = self._spacing
+        fnames = [f._fname for f in self._svgfiles]
+
+        # get all required namespaces and prefixes
+        NSMAP = {None : 'http://www.w3.org/2000/svg' }
+        origelems = []
+        for fname in fnames:
+            origelem = etree.parse(fname).getroot()
+            assert origelem.tag == '{http://www.w3.org/2000/svg}svg'
+            for key,value in origelem.nsmap.iteritems():
+                if key in NSMAP:
+                    assert value == NSMAP[key]
+                    # Already in namespace dictionary
+                    continue
+                elif key == 'svg':
+                    assert value == NSMAP[None]
+                    # svg is the default namespace - don't insert again.
+                    continue
+                NSMAP[key] = value
+            origelems.append(origelem)
+
+        root = etree.Element('{http://www.w3.org/2000/svg}svg',
+                             nsmap=NSMAP)
+
+        if self._inkscape:
+            root_defs = etree.SubElement(root,'{http://www.w3.org/2000/svg}defs')
+
+        root.attrib['version']='1.1'
+        cum_height_px = 0
+        cum_width_px = 0
+        max_orthogonal_direction_px = 0
+        for fname_num, origelem in enumerate(origelems):
+
+            fix_id_prefix = fname+':%d:'%fname_num
+            elem = etree.SubElement(root,'{http://www.w3.org/2000/svg}g')
+            elem.attrib['id'] = fname+':%d'%fname_num
+
+            height, height_units = get_unit_attr(origelem.get('height'))
+            width, width_units = get_unit_attr(origelem.get('width'))
+            width_px = convert_to_pixels( width, width_units)
+            height_px = convert_to_pixels( height, height_units)
+
+            if direction=='vertical':
+                dir_px = height_px
+                orthogonal_direction_px = width_px
+            else:
+                dir_px = width_px
+                orthogonal_direction_px = height_px
+            max_orthogonal_direction_px = max(max_orthogonal_direction_px, orthogonal_direction_px)
+
+            # copy svg contents into new group
+            for child in origelem:
+                if self._inkscape:
+                    if child.tag == '{http://www.w3.org/2000/svg}defs':
+                        # copy into root_defs, not into sub-group
+                        for subchild in child:
+                            fix_ids( subchild, fix_id_prefix )
+                            root_defs.append( subchild )
+                        continue
+                    elif child.tag == '{http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd}:namedview':
+                        # don't copy
+                        continue
+                    elif child.tag == '{http://www.w3.org/2000/svg}metadata':
+                        # don't copy
+                        continue
+                elem.append(child)
+
+            fix_ids( elem, fix_id_prefix )
+
+            translate_x = 0
+            translate_y = 0
+            if direction=='vertical':
+                translate_y = cum_height_px
+                cum_height_px += height_px + margin_px
+            else:
+                translate_x = cum_width_px
+                cum_width_px += width_px + margin_px
+
+            orig_viewBox = origelem.get('viewBox')
+            if orig_viewBox is not None:
+                # split by comma or whitespace
+                vb_tup = orig_viewBox.split(',')
+                vb_tup = [c.strip() for c in vb_tup]
+                if len(vb_tup)==1:
+                    # not separated by commas
+                    vb_tup = orig_viewBox.split()
+                assert len(vb_tup)==4
+                vb_tup = [float(v) for v in vb_tup]
+                vbminx, vbminy, vbwidth, vbheight = vb_tup
+                sx = width_px / vbwidth
+                sy = height_px / vbheight
+                tx = translate_x - vbminx
+                ty = translate_y - vbminy
+                elem.attrib['transform'] = 'matrix(%s,0,0,%s,%s,%s)'%(sx,sy,tx,ty)
+            else:
+                elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
+            root.append( elem )
+
+        if direction=='vertical':
+            cum_height_px -= margin_px
+        else:
+            cum_width_px -= margin_px
+
+        if direction=='vertical':
+            root.attrib["width"] = repr(max_orthogonal_direction_px)
+            root.attrib["height"] = repr(cum_height_px)
+            user_width = max_orthogonal_direction_px
+            user_height = cum_height_px
+
+        else:
+            root.attrib["height"] = repr(max_orthogonal_direction_px)
+            root.attrib["width"] = repr(cum_width_px)
+            user_width = cum_width_px
+            user_height = max_orthogonal_direction_px
+        return root
+
+# ------------------------------------------------------------------
+LeftToRight = 'LeftToRight'
+TopToBottom = 'TopToBottom'
+
+class Layout(object):
+    def __init__(self, parent=None):
+        if parent is not None:
+            raise NotImplementedError('')
+
+class BoxLayout(Layout):
+    def __init__(self, direction, parent=None):
+        super(BoxLayout,self).__init__(parent=parent)
+        self._direction = direction
+        self._items = []
+        self._contents_margins = 0 # around edge of box
+        self._spacing = 0 # between items in box
+
+    def render(self,accum):
+        accum.set_spacing( self._spacing )
+        if self._direction == LeftToRight:
+            accum.set_direction( 'horizontal' )
+        elif self._direction == TopToBottom:
+            accum.set_direction( 'vertical' )
+        else:
+            raise ValueError('unsupported direction: %s'%self._direction)
+
+        for item in self._items:
+            if isinstance( item, SVGFile ):
+                accum.add_svg(item)
+            else:
+                raise NotImplementedError("don't know how to accumulate item")
+
+    def setSpacing(self,spacing):
+        self._spacing = spacing
+
+    def addSVG(self, svg_file, strech=0, alignment=0):
+        if not isinstance(svg_file,SVGFile):
+            svg_file = SVGFile(svg_file)
+        self._items.append(svg_file)
+
+    def addLayout(self, layout, strech=0):
+        assert isinstance(layout,Layout)
+        self._items.append(layout)
+
+class HBoxLayout(BoxLayout):
+    def __init__(self, parent=None):
+        super(HBoxLayout,self).__init__(LeftToRight,parent=parent)
+
+class VBoxLayout(BoxLayout):
+    def __init__(self, parent=None):
+        super(VBoxLayout,self).__init__(TopToBottom,parent=parent)
+
+# ------------------------------------------------------------------
+
 def main():
     usage = '''%prog FILE1 [FILE2] [...] [options]
 
@@ -130,126 +361,18 @@ stdout.
     else:
         fd = sys.stdout
 
-    # get all required namespaces and prefixes
-    NSMAP = {None : 'http://www.w3.org/2000/svg' }
-    origelems = []
+    doc = Document()
+    if direction == 'vertical':
+        layout = VBoxLayout()
+    elif direction == 'horizontal':
+        layout = HBoxLayout()
+
     for fname in fnames:
-        origelem = etree.parse(fname).getroot()
-        assert origelem.tag == '{http://www.w3.org/2000/svg}svg'
-        for key,value in origelem.nsmap.iteritems():
-            if key in NSMAP:
-                assert value == NSMAP[key]
-                # Already in namespace dictionary
-                continue
-            elif key == 'svg':
-                assert value == NSMAP[None]
-                # svg is the default namespace - don't insert again.
-                continue
-            NSMAP[key] = value
-        origelems.append(origelem)
+        layout.addSVG(fname)
 
-    root = etree.Element('{http://www.w3.org/2000/svg}svg',
-                         nsmap=NSMAP)
-    if options.inkscape:
-        root_defs = etree.SubElement(root,'{http://www.w3.org/2000/svg}defs')
-
-    root.attrib['version']='1.1'
-    cum_height_px = 0
-    cum_width_px = 0
-    max_orthogonal_direction_px = 0
-    for fname_num, origelem in enumerate(origelems):
-
-        fix_id_prefix = fname+':%d:'%fname_num
-        elem = etree.SubElement(root,'{http://www.w3.org/2000/svg}g')
-        elem.attrib['id'] = fname+':%d'%fname_num
-
-        height, height_units = get_unit_attr(origelem.get('height'))
-        width, width_units = get_unit_attr(origelem.get('width'))
-        width_px = convert_to_pixels( width, width_units)
-        height_px = convert_to_pixels( height, height_units)
-
-        if direction=='vertical':
-            dir_px = height_px
-            orthogonal_direction_px = width_px
-        else:
-            dir_px = width_px
-            orthogonal_direction_px = height_px
-        max_orthogonal_direction_px = max(max_orthogonal_direction_px, orthogonal_direction_px)
-
-        # copy svg contents into new group
-        for child in origelem:
-            if options.inkscape:
-                if child.tag == '{http://www.w3.org/2000/svg}defs':
-                    # copy into root_defs, not into sub-group
-                    for subchild in child:
-                        fix_ids( subchild, fix_id_prefix )
-                        root_defs.append( subchild )
-                    continue
-                elif child.tag == '{http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd}:namedview':
-                    # don't copy
-                    continue
-                elif child.tag == '{http://www.w3.org/2000/svg}metadata':
-                    # don't copy
-                    continue
-            elem.append(child)
-
-        fix_ids( elem, fix_id_prefix )
-
-        translate_x = 0
-        translate_y = 0
-        if direction=='vertical':
-            translate_y = cum_height_px
-            cum_height_px += height_px + margin_px
-        else:
-            translate_x = cum_width_px
-            cum_width_px += width_px + margin_px
-
-        orig_viewBox = origelem.get('viewBox')
-        if orig_viewBox is not None:
-            # split by comma or whitespace
-            vb_tup = orig_viewBox.split(',')
-            vb_tup = [c.strip() for c in vb_tup]
-            if len(vb_tup)==1:
-                # not separated by commas
-                vb_tup = orig_viewBox.split()
-            assert len(vb_tup)==4
-            vb_tup = [float(v) for v in vb_tup]
-            vbminx, vbminy, vbwidth, vbheight = vb_tup
-            sx = width_px / vbwidth
-            sy = height_px / vbheight
-            tx = translate_x - vbminx
-            ty = translate_y - vbminy
-            elem.attrib['transform'] = 'matrix(%s,0,0,%s,%s,%s)'%(sx,sy,tx,ty)
-        else:
-            elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
-        root.append( elem )
-
-    if direction=='vertical':
-        cum_height_px -= margin_px
-    else:
-        cum_width_px -= margin_px
-
-    if direction=='vertical':
-        root.attrib["width"] = repr(max_orthogonal_direction_px)
-        root.attrib["height"] = repr(cum_height_px)
-        user_width = max_orthogonal_direction_px
-        user_height = cum_height_px
-
-    else:
-        root.attrib["height"] = repr(max_orthogonal_direction_px)
-        root.attrib["width"] = repr(cum_width_px)
-        user_width = cum_width_px
-        user_height = max_orthogonal_direction_px
-
-    header_str = """<?xml version="1.0" standalone="no"?>
-    <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
-      "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-      <!-- Created with svg_stack http://github.com/astraw/svg_stack -->
-    """
-
-    fd.write(header_str)
-    fd.write( etree.tostring(root, pretty_print=True ))
-    fd.close()
+    layout.setSpacing(margin_px)
+    doc.setLayout(layout)
+    doc.save( fd, inkscape=options.inkscape )
 
 if __name__=='__main__':
     main()
