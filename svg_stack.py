@@ -103,11 +103,11 @@ class Document(object):
         self._layout = None
     def setLayout(self,layout):
         self._layout = layout
-    def save(self,fileobj,**kwargs):
+    def save(self,fileobj,debug_boxes=False,**kwargs):
         if self._layout is None:
             raise ValueError('No layout, cannot save.')
         accum = LayoutAccumulator(**kwargs)
-        self._layout.render(accum)
+        self._layout.render(accum,debug_boxes=debug_boxes)
         if isinstance(fileobj,file):
             fd = fileobj
             close = False
@@ -153,12 +153,16 @@ class LayoutAccumulator(object):
     def __init__(self,inkscape=False):
         self._inkscape = inkscape
         self._svgfiles = []
+        self._raw_elements = []
 
-    def add_svg(self,svgfile):
+    def add_svg_file(self,svgfile):
         assert isinstance(svgfile,SVGFile)
         if svgfile in self._svgfiles:
             raise ValueError('cannot accumulate SVGFile instance twice')
         self._svgfiles.append( svgfile )
+
+    def add_raw_element(self,elem):
+        self._raw_elements.append( elem )
 
     def tostring(self, **kwargs):
         root = self._make_finalized_root()
@@ -247,6 +251,8 @@ class LayoutAccumulator(object):
                 elem.attrib['transform'] = 'translate(%s,%s)'%(
                     translate_x, translate_y)
             root.append( elem )
+        for elem in self._raw_elements:
+            root.append(elem)
 
         root.attrib["width"] = repr(self._size.width)
         root.attrib["height"] = repr(self._size.height)
@@ -294,16 +300,42 @@ class BoxLayout(Layout):
     def _set_coord(self,coord):
         self._coord = coord
 
-    def render(self,accum, min_size=None, level=0):
+    def render(self,accum, min_size=None, level=0, debug_boxes=0):
         size = self.get_size(min_size=min_size)
         if level==0:
             # set document size if top level
             accum._set_size(size)
+        if debug_boxes>0:
+            # draw black line around BoxLayout element
+            debug_box = etree.Element('{http://www.w3.org/2000/svg}rect')
+            debug_box.attrib['style']=(
+                'fill: none; stroke: black; stroke-width: 2.000000;')
+            sz=size
+            debug_box.attrib['x']=repr(self._coord[0])
+            debug_box.attrib['y']=repr(self._coord[1])
+            debug_box.attrib['width']=repr(sz.width)
+            debug_box.attrib['height']=repr(sz.height)
+            accum.add_raw_element(debug_box)
+
         for (item,stretch,alignment) in self._items:
             if isinstance( item, SVGFile ):
-                accum.add_svg(item)
+                accum.add_svg_file(item)
+
+                if debug_boxes>0:
+                    # draw red line around SVG file
+                    debug_box= etree.Element('{http://www.w3.org/2000/svg}rect')
+                    debug_box.attrib['style']=(
+                        'fill: none; stroke: red; stroke-width: 1.000000;')
+                    sz=item.get_size()
+                    debug_box.attrib['x']=repr(item._coord[0])
+                    debug_box.attrib['y']=repr(item._coord[1])
+                    debug_box.attrib['width']=repr(sz.width)
+                    debug_box.attrib['height']=repr(sz.height)
+                    accum.add_raw_element(debug_box)
+
             elif isinstance( item, BoxLayout ):
-                item.render( accum, min_size=item._size, level=level+1 )
+                item.render( accum, min_size=item._size, level=level+1,
+                             debug_boxes=debug_boxes)
             else:
                 raise NotImplementedError(
                     "don't know how to accumulate item %s"%item)
