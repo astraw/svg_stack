@@ -139,7 +139,7 @@ class SVGFile(object):
     def get_root(self):
         return self._root
 
-    def get_size(self,min_size=None):
+    def get_size(self,min_size=None,box_align=None,level=None):
         return Size(self._width_px,self._height_px)
 
     def _set_size(self,size):
@@ -340,7 +340,7 @@ class BoxLayout(Layout):
                 raise NotImplementedError(
                     "don't know how to accumulate item %s"%item)
 
-    def get_size(self, min_size=None):
+    def get_size(self, min_size=None, box_align=0, level=0 ):
         cum_dim = 0 # size along layout direction
         max_orth_dim = 0 # size along other direction
 
@@ -358,12 +358,10 @@ class BoxLayout(Layout):
                                 height=0)
 
         cum_dim += self._contents_margins # first margin
-        item_normcoords = []
         item_sizes = []
         for item_number,(item,stretch,alignment) in enumerate(self._items):
-            item_size = item.get_size(min_size=dim_min_size)
+            item_size = item.get_size(min_size=dim_min_size, box_align=alignment,level=level+1)
             item_sizes.append( item_size )
-            item_normcoords.append( (cum_dim, self._contents_margins) )
 
             if self._direction in [LeftToRight, RightToLeft]:
                 cum_dim += item_size.width
@@ -375,59 +373,91 @@ class BoxLayout(Layout):
             if (item_number+1) < len(self._items):
                 cum_dim += self._spacing # space between elements
         cum_dim += self._contents_margins # last margin
+        orth_dim = max_orth_dim # value without adding margins
         max_orth_dim += 2*self._contents_margins # margins
 
-        # Step 2: which is bigger - required size or minimum size
-        expansion = False
+        # ---------------------------------
+
+        # Step 2: another pass in which expansion takes place
+        total_stretch = 0
+        for item,stretch,alignment in self._items:
+            total_stretch += stretch
         if (self._direction in [LeftToRight, RightToLeft]):
-            if min_size.width > cum_dim:
-                expansion=True
+            dim_unfilled_length = max(0,min_size.width - cum_dim)
         else:
-            if min_size.height > cum_dim:
-                expansion=True
+            dim_unfilled_length = max(0,min_size.height - cum_dim)
+
+        stretch_hack = False
+        if dim_unfilled_length > 0:
+            if total_stretch == 0:
+                # BoxLayout in which stretch is 0, but unfilled space
+                # exists.
+
+                # XXX TODO: what is Qt policy in this case?
+                stretch_hack = True
+                stretch_inc = 0
+            else:
+                stretch_inc = dim_unfilled_length / float(total_stretch)
+        else:
+            stretch_inc = 0
+
+        cum_dim = 0 # size along layout direction
+        cum_dim += self._contents_margins # first margin
+        is_last_item = False
+        for i,(_item,old_item_size) in enumerate(zip(self._items,item_sizes)):
+            if (i+1) >= len(self._items):
+                is_last_item=True
+            (item,stretch,alignment) = _item
+            if (self._direction in [LeftToRight, RightToLeft]):
+                new_dim_length = old_item_size.width + stretch*stretch_inc
+                if stretch_hack and is_last_item:
+                    new_dim_length = old_item_size.width + dim_unfilled_length
+                new_item_size = Size( new_dim_length, orth_dim )
+            else:
+                new_dim_length = old_item_size.height + stretch*stretch_inc
+                if stretch_hack and is_last_item:
+                    new_dim_length = old_item_size.width + dim_unfilled_length
+                new_item_size = Size( orth_dim, new_dim_length )
+
+            item_size = item.get_size(min_size=new_item_size, box_align=alignment,level=level+1)
+            if self._direction == LeftToRight:
+                child_box_coord = (cum_dim, self._contents_margins)
+            elif self._direction == TopToBottom:
+                child_box_coord = (self._contents_margins, cum_dim)
+            else:
+                raise NotImplementedError(
+                    'direction %s not implemented'%self._direction)
+            child_box_coord = (child_box_coord[0] + self._coord[0],
+                               child_box_coord[1] + self._coord[1])
+            child_box_size = new_item_size
+
+            item_pos, final_item_size = self._calc_box( child_box_coord, child_box_size,
+                                                        item_size,
+                                                        alignment )
+            item._set_coord( item_pos )
+            item._set_size( final_item_size )
+
+            if self._direction in [LeftToRight, RightToLeft]:
+                # Use requested item size so ill behaved item doesn't
+                # screw up layout.
+                cum_dim += new_item_size.width
+            else:
+                # Use requested item size so ill behaved item doesn't
+                # screw up layout.
+                cum_dim += new_item_size.height
+
+            if not is_last_item:
+                cum_dim += self._spacing # space between elements
+        cum_dim += self._contents_margins # last margin
+
+        # ---------------------------------
 
         # Step 3: calculate coordinates of each item
-
-        if expansion:
-            # required size less than minimum size
-            item_normcoords = None # invalid
-            # need to incorporate stretch data here
-            raise NotImplementedError('expanding box not yet done')
-        # else required size is larger than minimum size
 
         if self._direction in [LeftToRight, RightToLeft]:
             size = Size(cum_dim, max_orth_dim)
         else:
             size = Size(max_orth_dim, cum_dim)
-
-        coords = []
-        for ic in item_normcoords:
-            if self._direction == LeftToRight:
-                coords.append( (ic[0],ic[1]) )
-            elif self._direction == TopToBottom:
-                coords.append( (ic[1],ic[0]) )
-            else:
-                raise NotImplementedError(
-                    'direction %s not implemented'%self._direction)
-        del item_normcoords
-
-        # Step 4: set coordinates of each item
-        for i in range(len(self._items)):
-            coord = coords[i]
-            (item, stretch, alignment) = self._items[i]
-            box_pos = (self._coord[0]+coord[0], self._coord[1]+coord[1])
-            item_size = item_sizes[i]
-            if self._direction in [LeftToRight, RightToLeft]:
-                # expand vertically
-                box_size = Size(item_size.width, max_orth_dim)
-            else:
-                # expand horizontally
-                box_size = Size(max_orth_dim, item_size.height)
-            item_pos, item_size = self._calc_box( box_pos, box_size, item_size,
-                                                  alignment )
-            item._set_coord( item_pos )
-            item._set_size( item_size )
-            tmp = item.get_size()
 
         self._size = size
         return size
@@ -478,7 +508,7 @@ class BoxLayout(Layout):
 
     def addLayout(self, layout, stretch=0):
         assert isinstance(layout,Layout)
-        alignment=0 # expand
+        alignment=0 # always expand a layout
         self._items.append((layout,stretch,alignment))
 
 class HBoxLayout(BoxLayout):
