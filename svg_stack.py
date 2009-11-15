@@ -241,9 +241,11 @@ class LayoutAccumulator(object):
                 sy = height_px / vbheight
                 tx = translate_x - vbminx
                 ty = translate_y - vbminy
-                elem.attrib['transform'] = 'matrix(%s,0,0,%s,%s,%s)'%(sx,sy,tx,ty)
+                elem.attrib['transform'] = 'matrix(%s,0,0,%s,%s,%s)'%(
+                    sx,sy,tx,ty)
             else:
-                elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
+                elem.attrib['transform'] = 'translate(%s,%s)'%(
+                    translate_x, translate_y)
             root.append( elem )
 
         root.attrib["width"] = repr(self._size.width)
