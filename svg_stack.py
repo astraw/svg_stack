@@ -150,8 +150,7 @@ class SVGFile(object):
         self._coord = coord
 
 class LayoutAccumulator(object):
-    def __init__(self,inkscape=False):
-        self._inkscape = inkscape
+    def __init__(self):
         self._svgfiles = []
         self._raw_elements = []
 
@@ -190,7 +189,8 @@ class LayoutAccumulator(object):
         root = etree.Element('{http://www.w3.org/2000/svg}svg',
                              nsmap=NSMAP)
 
-        if self._inkscape:
+        if 1:
+            # inkscape hack
             root_defs = etree.SubElement(root,'{http://www.w3.org/2000/svg}defs')
 
         root.attrib['version']='1.1'
@@ -207,7 +207,8 @@ class LayoutAccumulator(object):
 
             # copy svg contents into new group
             for child in origelem:
-                if self._inkscape:
+                if 1:
+                    # inkscape hacks
                     if child.tag == '{http://www.w3.org/2000/svg}defs':
                         # copy into root_defs, not into sub-group
                         for subchild in child:
@@ -535,8 +536,6 @@ stdout.
     parser.add_option("--margin",type='str',
                       help='size of margin (in any units, px default)',
                       default=None)
-    parser.add_option("--inkscape",action='store_true',default=False,
-                      help='attempt to work with Inkscape files')
     parser.add_option("--direction",type='str',
                       default='vertical',
                       help='horizontal or vertical (or h or v)')
@@ -571,7 +570,7 @@ stdout.
 
     layout.setSpacing(margin_px)
     doc.setLayout(layout)
-    doc.save( fd, inkscape=options.inkscape )
+    doc.save( fd )
 
 if __name__=='__main__':
     main()
