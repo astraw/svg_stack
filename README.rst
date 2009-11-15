@@ -14,8 +14,8 @@ will stack them horizontally with a 100 px margin between them. The
 result will be in a file called shapes.svg.
 
 Additionally, a Qt_ like API may be used to provide slightly more
-advanced layout capabilities. See the file ``qt_api_demo.py`` for
-examples of this type of use.
+advanced layout capabilities. See the file ``examples/qt_api_demo.py``
+for examples of this type of use.
 
 .. _Qt: http://qt.nokia.com/
 
