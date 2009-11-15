@@ -1,21 +1,55 @@
-svg_stack - concatenate SVG files
-=================================
+svg_stack - combine multiple SVG elements into a single SVG element
+===================================================================
 
 Overview
 --------
 
-This program concatenates (stacks) SVG graphics. It is designed to be
-used from the command line or used within Python scripts. For example,
-given the files red_ball.svg and blue_triangle.svg::
+svg_stack combines multiple SVG elements into a single SVG element. It
+can be called from the command line (less flexible) or called from the
+Python interface (more flexible).
+
+This tool exists primarily exists to automatically composite SVG files
+into a single SVG file that remains compatible with Inkscape_. If
+compatibility with Inkscape is not required, one can create an svg
+file with multiple, nested <svg> elements. Inkscape, however, doesn't
+seem to handle nested <svg> elements particularly well. Thus, this
+tool was born.
+
+Example command line usage
+--------------------------
+
+For example, given the files red_ball.svg and blue_triangle.svg::
 
   svg_stack.py --direction=h --margin=100 red_ball.svg blue_triangle.svg > shapes.svg
 
 will stack them horizontally with a 100 px margin between them. The
 result will be in a file called shapes.svg.
 
-Additionally, a Qt_ like API may be used to provide slightly more
-advanced layout capabilities. See the file ``examples/qt_api_demo.py``
-for examples of this type of use.
+Example Python usage
+--------------------
+
+A Qt_ like API provides more advanced layout capabilities. For example::
+
+  #!/usr/bin/env python
+
+  import svg_stack as ss
+
+  doc = ss.Document()
+
+  layout1 = ss.HBoxLayout()
+  layout1.addSVG('red_ball.svg',alignment=ss.AlignTop|ss.AlignHCenter)
+  layout1.addSVG('blue_triangle.svg',alignment=ss.AlignCenter)
+
+  layout2 = ss.VBoxLayout()
+
+  layout2.addSVG('red_ball.svg',alignment=ss.AlignCenter)
+  layout2.addSVG('red_ball.svg',alignment=ss.AlignCenter)
+  layout2.addSVG('red_ball.svg',alignment=ss.AlignCenter)
+  layout1.addLayout(layout2)
+
+  doc.setLayout(layout1)
+
+  doc.save('qt_api_test.svg')
 
 .. _Qt: http://qt.nokia.com/
 
@@ -28,8 +62,8 @@ Meta-data
  * Homepage: http://github.com/astraw/svg_stack
  * Issue tracker: http://github.com/astraw/svg_stack/issues
 
-Usage
------
+Command-line usage
+------------------
 
 ::
 
@@ -46,7 +80,6 @@ Usage
     --version             show program's version number and exit
     -h, --help            show this help message and exit
     --margin=MARGIN       size of margin (in any units, px default)
-    --inkscape            attempt to work with Inkscape files
     --direction=DIRECTION
                           horizontal or vertical (or h or v)
 
