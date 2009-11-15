@@ -124,15 +124,29 @@ class Document(object):
 class SVGFile(object):
     def __init__(self,fname):
         self._fname = fname
+        self._root = etree.parse(fname).getroot()
+        if self._root.tag != '{http://www.w3.org/2000/svg}svg':
+            raise ValueError('expected file to have root element <svg:svg>')
+
+        height, height_units = get_unit_attr(self._root.get('height'))
+        width, width_units = get_unit_attr(self._root.get('width'))
+        self._width_px = convert_to_pixels( width, width_units)
+        self._height_px = convert_to_pixels( height, height_units)
+        self._coord = None # unassigned
+
+    def get_root(self):
+        return self._root
+
+    def get_size(self,min_size=None):
+        return Size(self._width_px,self._height_px)
+
+    def _set_coord(self,coord):
+        self._coord = coord
 
 class LayoutAccumulator(object):
     def __init__(self,inkscape=False):
         self._inkscape = inkscape
         self._svgfiles = []
-
-        # These have to be moved deeper into the layout:
-        self._spacing = 0
-        self._direction = None
 
     def add_svg(self,svgfile):
         assert isinstance(svgfile,SVGFile)
@@ -145,22 +159,19 @@ class LayoutAccumulator(object):
         return etree.tostring(root,**kwargs)
 
     def set_spacing( self, spacing ):
-        self._spacing = spacing
+        1/0
 
     def set_direction( self, direction ):
-        self._direction = direction
+        1/0
+
+    def _set_size(self,size):
+        self._size = size
 
     def _make_finalized_root(self):
-        direction = self._direction
-        margin_px = self._spacing
-        fnames = [f._fname for f in self._svgfiles]
-
         # get all required namespaces and prefixes
         NSMAP = {None : 'http://www.w3.org/2000/svg' }
-        origelems = []
-        for fname in fnames:
-            origelem = etree.parse(fname).getroot()
-            assert origelem.tag == '{http://www.w3.org/2000/svg}svg'
+        for svgfile in self._svgfiles:
+            origelem = svgfile.get_root()
             for key,value in origelem.nsmap.iteritems():
                 if key in NSMAP:
                     assert value == NSMAP[key]
@@ -171,7 +182,6 @@ class LayoutAccumulator(object):
                     # svg is the default namespace - don't insert again.
                     continue
                 NSMAP[key] = value
-            origelems.append(origelem)
 
         root = etree.Element('{http://www.w3.org/2000/svg}svg',
                              nsmap=NSMAP)
@@ -180,27 +190,15 @@ class LayoutAccumulator(object):
             root_defs = etree.SubElement(root,'{http://www.w3.org/2000/svg}defs')
 
         root.attrib['version']='1.1'
-        cum_height_px = 0
-        cum_width_px = 0
-        max_orthogonal_direction_px = 0
-        for fname_num, origelem in enumerate(origelems):
+        for fname_num, svgfile in enumerate(self._svgfiles):
+            origelem = svgfile.get_root()
 
-            fix_id_prefix = fname+':%d:'%fname_num
+            fix_id_prefix = 'id%d:'%fname_num
             elem = etree.SubElement(root,'{http://www.w3.org/2000/svg}g')
-            elem.attrib['id'] = fname+':%d'%fname_num
+            elem.attrib['id'] = 'id%d'%fname_num
 
-            height, height_units = get_unit_attr(origelem.get('height'))
-            width, width_units = get_unit_attr(origelem.get('width'))
-            width_px = convert_to_pixels( width, width_units)
-            height_px = convert_to_pixels( height, height_units)
-
-            if direction=='vertical':
-                dir_px = height_px
-                orthogonal_direction_px = width_px
-            else:
-                dir_px = width_px
-                orthogonal_direction_px = height_px
-            max_orthogonal_direction_px = max(max_orthogonal_direction_px, orthogonal_direction_px)
+            width_px = svgfile._width_px
+            height_px = svgfile._height_px
 
             # copy svg contents into new group
             for child in origelem:
@@ -221,15 +219,8 @@ class LayoutAccumulator(object):
 
             fix_ids( elem, fix_id_prefix )
 
-            translate_x = 0
-            translate_y = 0
-            if direction=='vertical':
-                translate_y = cum_height_px
-                cum_height_px += height_px + margin_px
-            else:
-                translate_x = cum_width_px
-                cum_width_px += width_px + margin_px
-
+            translate_x = svgfile._coord[0]
+            translate_y = svgfile._coord[1]
             orig_viewBox = origelem.get('viewBox')
             if orig_viewBox is not None:
                 # split by comma or whitespace
@@ -250,27 +241,21 @@ class LayoutAccumulator(object):
                 elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
             root.append( elem )
 
-        if direction=='vertical':
-            cum_height_px -= margin_px
-        else:
-            cum_width_px -= margin_px
+        root.attrib["width"] = repr(self._size.width)
+        root.attrib["height"] = repr(self._size.height)
 
-        if direction=='vertical':
-            root.attrib["width"] = repr(max_orthogonal_direction_px)
-            root.attrib["height"] = repr(cum_height_px)
-            user_width = max_orthogonal_direction_px
-            user_height = cum_height_px
-
-        else:
-            root.attrib["height"] = repr(max_orthogonal_direction_px)
-            root.attrib["width"] = repr(cum_width_px)
-            user_width = cum_width_px
-            user_height = max_orthogonal_direction_px
         return root
 
 # ------------------------------------------------------------------
+class Size(object):
+    def __init__(self, width=0, height=0):
+        self.width=width
+        self.height=height
+
 LeftToRight = 'LeftToRight'
+RightToLeft = 'RightToLeft'
 TopToBottom = 'TopToBottom'
+BottomToTop = 'BottomToTop'
 
 class Layout(object):
     def __init__(self, parent=None):
@@ -284,33 +269,113 @@ class BoxLayout(Layout):
         self._items = []
         self._contents_margins = 0 # around edge of box
         self._spacing = 0 # between items in box
+        self._coord = (0,0) # default
+        self._size = None # uncalculated
 
-    def render(self,accum):
-        accum.set_spacing( self._spacing )
-        if self._direction == LeftToRight:
-            accum.set_direction( 'horizontal' )
-        elif self._direction == TopToBottom:
-            accum.set_direction( 'vertical' )
-        else:
-            raise ValueError('unsupported direction: %s'%self._direction)
+    def _set_coord(self,coord):
+        self._coord = coord
 
-        for item in self._items:
+    def render(self,accum, min_size=None, level=0):
+        size = self.get_size(min_size=min_size)
+        if level==0:
+            # set document size if top level
+            accum._set_size(size)
+        for (item,stretch,alignment) in self._items:
             if isinstance( item, SVGFile ):
                 accum.add_svg(item)
+            elif isinstance( item, BoxLayout ):
+                item.render( accum, min_size=item._size, level=level+1 )
             else:
-                raise NotImplementedError("don't know how to accumulate item")
+                raise NotImplementedError(
+                    "don't know how to accumulate item %s"%item)
+
+    def get_size(self, min_size=None):
+        cum_dim = 0 # size along layout direction
+        max_orth_dim = 0 # size along other direction
+
+        if min_size is None:
+            min_size = Size(0,0)
+
+        # Step 1: calculate required size along self._direction
+        if self._direction in [LeftToRight, RightToLeft]:
+            max_orth_dim = min_size.height
+            dim_min_size = Size(width=0,
+                                height=max_orth_dim)
+        else:
+            max_orth_dim = min_size.width
+            dim_min_size = Size(width=max_orth_dim,
+                                height=0)
+
+        cum_dim += self._contents_margins # first margin
+        item_normcoords = []
+        for item_number,(item,stretch,alignment) in enumerate(self._items):
+            item_size = item.get_size(min_size=dim_min_size)
+
+            item_normcoords.append( (cum_dim, self._contents_margins) )
+
+            if self._direction in [LeftToRight, RightToLeft]:
+                cum_dim += item_size.width
+                max_orth_dim = max(max_orth_dim,item_size.height)
+            else:
+                cum_dim += item_size.height
+                max_orth_dim = max(max_orth_dim,item_size.width)
+
+            if (item_number+1) < len(self._items):
+                cum_dim += self._spacing # space between elements
+        cum_dim += self._contents_margins # last margin
+        max_orth_dim += 2*self._contents_margins # margins
+
+        # Step 2: which is bigger - required size or minimum size
+        expansion = False
+        if (self._direction in [LeftToRight, RightToLeft]):
+            if min_size.width > cum_dim:
+                expansion=True
+        else:
+            if min_size.height > cum_dim:
+                expansion=True
+
+        # Step 3: calculate coordinates of each item
+
+        if expansion:
+            item_normcoords = None # invalid
+            raise NotImplementedError('expanding box not yet done')
+        else:
+            # required size is larger than minimum size
+            if self._direction in [LeftToRight, RightToLeft]:
+                size = Size(cum_dim, max_orth_dim)
+            else:
+                size = Size(max_orth_dim, cum_dim)
+
+            coords = []
+            for ic in item_normcoords:
+                if self._direction == LeftToRight:
+                    coords.append( (ic[0],ic[1]) )
+                elif self._direction == TopToBottom:
+                    coords.append( (ic[1],ic[0]) )
+                else:
+                    raise NotImplementedError(
+                        'direction %s not implemented'%self._direction)
+            del item_normcoords
+
+        # Step 4: set coordinates of each item
+        for (item, stretch, alignment), coord in zip(self._items, coords):
+            item._set_coord( (self._coord[0]+coord[0], self._coord[1]+coord[1]))
+
+        self._size = size
+        return size
 
     def setSpacing(self,spacing):
         self._spacing = spacing
 
-    def addSVG(self, svg_file, strech=0, alignment=0):
+    def addSVG(self, svg_file, stretch=0, alignment=0):
         if not isinstance(svg_file,SVGFile):
             svg_file = SVGFile(svg_file)
-        self._items.append(svg_file)
+        self._items.append((svg_file,stretch,alignment))
 
-    def addLayout(self, layout, strech=0):
+    def addLayout(self, layout, stretch=0):
         assert isinstance(layout,Layout)
-        self._items.append(layout)
+        alignment=0 # expand
+        self._items.append((layout,stretch,alignment))
 
 class HBoxLayout(BoxLayout):
     def __init__(self, parent=None):
