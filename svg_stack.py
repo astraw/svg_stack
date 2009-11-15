@@ -164,12 +164,6 @@ class LayoutAccumulator(object):
         root = self._make_finalized_root()
         return etree.tostring(root,**kwargs)
 
-    def set_spacing( self, spacing ):
-        1/0
-
-    def set_direction( self, direction ):
-        1/0
-
     def _set_size(self,size):
         self._size = size
 
