@@ -15,6 +15,8 @@ file with multiple, nested <svg> elements. Inkscape, however, doesn't
 seem to handle nested <svg> elements particularly well. Thus, this
 tool was born.
 
+.. _Inkscape: http://inkscape.org/
+
 Example command line usage
 --------------------------
 
