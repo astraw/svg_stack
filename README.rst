@@ -5,13 +5,19 @@ Overview
 --------
 
 This program concatenates (stacks) SVG graphics. It is designed to be
-used from the command line. For example, given the files red_ball.svg
-and blue_triangle.svg::
+used from the command line or used within Python scripts. For example,
+given the files red_ball.svg and blue_triangle.svg::
 
-  svg_stack --direction=h --margin=100 red_ball.svg blue_triangle.svg > shapes.svg
+  svg_stack.py --direction=h --margin=100 red_ball.svg blue_triangle.svg > shapes.svg
 
 will stack them horizontally with a 100 px margin between them. The
 result will be in a file called shapes.svg.
+
+Additionally, a Qt_ like API may be used to provide slightly more
+advanced layout capabilities. See the file ``qt_api_demo.py`` for
+examples of this type of use.
+
+.. _Qt: http://qt.nokia.com/
 
 Meta-data
 ---------
