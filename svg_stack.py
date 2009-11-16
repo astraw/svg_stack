@@ -21,7 +21,7 @@
 ## THE SOFTWARE.
 
 from lxml import etree # Ubuntu Karmic package: python-lxml
-import sys
+import sys, re
 from optparse import OptionParser
 
 VERSION = '0.0.1' # keep in sync with setup.py
@@ -31,6 +31,8 @@ PT2IN = 1.0/72.0
 IN2PT = 72.0
 PT2PX = 1.25
 PX2PT = 1.0/1.25
+
+relIRI_re = re.compile(r'url\(#(.*)\)')
 
 def get_unit_attr(value):
     # coordinate handling from http://www.w3.org/TR/SVG11/coords.html#Units
@@ -80,10 +82,10 @@ def fix_ids( elem, prefix, level=0 ):
                     iri = value[1:]
                     value = '#' + prefix + iri
                     elem.attrib[attrib] = value
-                elif relIRI and value.startswith('url(#') and value.endswith(')'): # local IRI, change
-                    iri = value[5:-1]
-                    value = 'url(#' + prefix + iri + ')'
-                    elem.attrib[attrib] = value
+                elif relIRI:
+                    newvalue = re.sub( relIRI_re, r'url(#'+prefix+r'\1)', value)
+                    if newvalue != value:
+                        elem.attrib[attrib] = newvalue
 
         # Do same for children
 
