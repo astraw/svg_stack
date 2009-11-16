@@ -89,7 +89,6 @@ def fix_ids( elem, prefix, level=0 ):
 
     for child in elem:
         fix_ids(child,prefix,level=level+1)
-    return elem
 
 header_str = """<?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
