@@ -344,7 +344,7 @@ class BoxLayout(Layout):
                 extra = etree.Element('{http://www.w3.org/2000/svg}g')
                 extra.attrib['transform'] = 'translate(%s,%s)'%(
                     repr(item._coord[0]),repr(item._coord[1]))
-                extra.append(etree.XML(xml))
+                extra.append(xml)
                 accum.add_raw_element(extra)
 
     def get_size(self, min_size=None, box_align=0, level=0 ):
@@ -511,6 +511,8 @@ class BoxLayout(Layout):
     def addSVG(self, svg_file, stretch=0, alignment=0, xml=None):
         if not isinstance(svg_file,SVGFile):
             svg_file = SVGFile(svg_file)
+        if xml is not None:
+            xml = etree.XML(xml)
         self._items.append((svg_file,stretch,alignment,xml))
 
     def addLayout(self, layout, stretch=0):
