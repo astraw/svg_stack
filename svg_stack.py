@@ -317,7 +317,7 @@ class BoxLayout(Layout):
             debug_box.attrib['height']=repr(sz.height)
             accum.add_raw_element(debug_box)
 
-        for (item,stretch,alignment) in self._items:
+        for (item,stretch,alignment,xml) in self._items:
             if isinstance( item, SVGFile ):
                 accum.add_svg_file(item)
 
@@ -340,6 +340,13 @@ class BoxLayout(Layout):
                 raise NotImplementedError(
                     "don't know how to accumulate item %s"%item)
 
+            if xml is not None:
+                extra = etree.Element('{http://www.w3.org/2000/svg}g')
+                extra.attrib['transform'] = 'translate(%s,%s)'%(
+                    repr(item._coord[0]),repr(item._coord[1]))
+                extra.append(etree.XML(xml))
+                accum.add_raw_element(extra)
+
     def get_size(self, min_size=None, box_align=0, level=0 ):
         cum_dim = 0 # size along layout direction
         max_orth_dim = 0 # size along other direction
@@ -359,7 +366,7 @@ class BoxLayout(Layout):
 
         cum_dim += self._contents_margins # first margin
         item_sizes = []
-        for item_number,(item,stretch,alignment) in enumerate(self._items):
+        for item_number,(item,stretch,alignment,xml) in enumerate(self._items):
             item_size = item.get_size(min_size=dim_min_size, box_align=alignment,level=level+1)
             item_sizes.append( item_size )
 
@@ -380,7 +387,7 @@ class BoxLayout(Layout):
 
         # Step 2: another pass in which expansion takes place
         total_stretch = 0
-        for item,stretch,alignment in self._items:
+        for item,stretch,alignment,xml in self._items:
             total_stretch += stretch
         if (self._direction in [LeftToRight, RightToLeft]):
             dim_unfilled_length = max(0,min_size.width - cum_dim)
@@ -407,7 +414,7 @@ class BoxLayout(Layout):
         for i,(_item,old_item_size) in enumerate(zip(self._items,item_sizes)):
             if (i+1) >= len(self._items):
                 is_last_item=True
-            (item,stretch,alignment) = _item
+            (item,stretch,alignment,xml) = _item
             if (self._direction in [LeftToRight, RightToLeft]):
                 new_dim_length = old_item_size.width + stretch*stretch_inc
                 if stretch_hack and is_last_item:
@@ -501,15 +508,16 @@ class BoxLayout(Layout):
     def setSpacing(self,spacing):
         self._spacing = spacing
 
-    def addSVG(self, svg_file, stretch=0, alignment=0):
+    def addSVG(self, svg_file, stretch=0, alignment=0, xml=None):
         if not isinstance(svg_file,SVGFile):
             svg_file = SVGFile(svg_file)
-        self._items.append((svg_file,stretch,alignment))
+        self._items.append((svg_file,stretch,alignment,xml))
 
     def addLayout(self, layout, stretch=0):
         assert isinstance(layout,Layout)
         alignment=0 # always expand a layout
-        self._items.append((layout,stretch,alignment))
+        xml=None
+        self._items.append((layout,stretch,alignment,xml))
 
 class HBoxLayout(BoxLayout):
     def __init__(self, parent=None):
