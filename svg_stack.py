@@ -136,6 +136,8 @@ class SVGFile(object):
         self._orig_width_px = self._width_px
         self._orig_height_px = self._height_px
         self._coord = None # unassigned
+    def __str__(self):
+        return 'SVGFile(%s)'%repr(self._fname)
 
     def get_root(self):
         return self._root
@@ -229,9 +231,13 @@ class LayoutAccumulator(object):
             translate_x = svgfile._coord[0]
             translate_y = svgfile._coord[1]
             if svgfile._orig_width_px != width_px:
-                raise NotImplementedError('rescaling width not implemented')
+                raise NotImplementedError('rescaling width not implemented '
+                                          '(hint: set alignment on file %s)'%(
+                    svgfile,))
             if svgfile._orig_height_px != height_px:
-                raise NotImplementedError('rescaling height not implemented')
+                raise NotImplementedError('rescaling height not implemented '
+                                          '(hint: set alignment on file %s)'%(
+                    svgfile,))
             orig_viewBox = origelem.get('viewBox')
             if orig_viewBox is not None:
                 # split by comma or whitespace
