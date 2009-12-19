@@ -197,7 +197,9 @@ class LayoutAccumulator(object):
 
     def _make_finalized_root(self):
         # get all required namespaces and prefixes
-        NSMAP = {None : 'http://www.w3.org/2000/svg' }
+        NSMAP = {None : 'http://www.w3.org/2000/svg',
+                 'sodipodi':'http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd',
+                 }
         for svgfile in self._svgfiles:
             origelem = svgfile.get_root()
             for key,value in origelem.nsmap.iteritems():
