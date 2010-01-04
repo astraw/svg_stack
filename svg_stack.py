@@ -59,7 +59,7 @@ def convert_to_pixels( val, units):
 def fix_ids( elem, prefix, level=0 ):
     ns = '{http://www.w3.org/2000/svg}'
 
-    if elem.tag.startswith(ns):
+    if isinstance(elem.tag,basestring) and elem.tag.startswith(ns):
 
         tag = elem.tag[len(ns):]
 
