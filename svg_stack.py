@@ -582,12 +582,13 @@ class BoxLayout(Layout):
             xml = etree.XML(xml)
         self._items.append((svg_file,stretch,alignment,xml))
 
-    def addSVGNoLayout(self, svg_file, x=0, y=0):
+    def addSVGNoLayout(self, svg_file, x=0, y=0, xml=None):
         if not isinstance(svg_file,SVGFileNoLayout):
             svg_file = SVGFileNoLayout(svg_file,x=x,y=y)
         stretch=0
         alignment=0
-        xml=None
+        if xml is not None:
+            xml = etree.XML(xml)
         self._items.append((svg_file,stretch,alignment,xml))
 
     def addLayout(self, layout, stretch=0):
