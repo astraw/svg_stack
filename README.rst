@@ -55,6 +55,13 @@ A Qt_ like API provides more advanced layout capabilities. For example::
 
 .. _Qt: http://qt.nokia.com/
 
+See also
+--------
+
+ * `svg_utils <https://github.com/btel/svg_utils>`_ does a very
+   similar thing. (See also a related `blog post
+   <http://neuroscience.telenczuk.pl/?p=331>`_.)
+
 Meta-data
 ---------
 
