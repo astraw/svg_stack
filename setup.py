@@ -4,5 +4,5 @@ setup(name='svg_stack',
       author='Andrew Straw <strawman@astraw.com>',
       url='http://github.com/astraw/svg_stack',
       py_modules=['svg_stack'],
-      scripts=['svg_stack'],
+      scripts=['svg_stack.py'],
       )
