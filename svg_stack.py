@@ -26,9 +26,10 @@ from optparse import OptionParser
 
 VERSION = '0.0.1' # keep in sync with setup.py
 
-UNITS = ['pt','px','in']
+UNITS = ['pt','px','in','mm']
 PT2IN = 1.0/72.0
 IN2PT = 72.0
+MM2PT = 72.0/25.4
 PT2PX = 1.25
 PX2PT = 1.0/1.25
 
@@ -52,6 +53,8 @@ def convert_to_pixels( val, units):
         val_px = val*PT2PX
     elif units == 'in':
         val_px = val*IN2PT*PT2PX
+    elif units == 'mm':
+        val_px = val*MM2PT*PT2PX
     else:
         raise ValueError('unsupport unit conversion to pixels: %s'%units)
     return val_px
