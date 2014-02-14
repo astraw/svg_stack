@@ -21,7 +21,8 @@
 ## THE SOFTWARE.
 
 from lxml import etree # Ubuntu Karmic package: python-lxml
-import sys, re
+import sys, re, os
+import base64
 from optparse import OptionParser
 
 VERSION = '0.0.1' # keep in sync with setup.py
@@ -95,6 +96,48 @@ def fix_ids( elem, prefix, level=0 ):
     for child in elem:
         fix_ids(child,prefix,level=level+1)
 
+def export_images( elem, filename_fmt='image%03d', start_idx=1 ):
+    """replace inline images with files"""
+    ns = '{http://www.w3.org/2000/svg}'
+    href = '{http://www.w3.org/1999/xlink}href'
+    count = 0
+    if isinstance(elem.tag,basestring) and elem.tag.startswith(ns):
+        tag = elem.tag[len(ns):]
+        if tag=='image':
+            buf = etree.tostring(elem,pretty_print=True)
+            im_data = elem.attrib[href]
+            exts = ['png','jpeg']
+            found = False
+            for ext in exts:
+                prefix = 'data:image/'+ext+';base64,'
+                if im_data.startswith(prefix):
+                    data_base64 = im_data[len(prefix):]
+                    found = True
+                    break
+            if not found:
+                raise NotImplementedError('image found but not supported')
+
+            # decode data
+            data = base64.b64decode(data_base64)
+
+            # save data
+            idx = start_idx + count
+            fname = filename_fmt%idx + '.' + ext
+            if os.path.exists(fname):
+                raise RuntimeError('File exists: %r'%fname)
+            with open(fname,mode='w') as fd:
+                fd.write( data )
+
+            # replace element with link
+            elem.attrib[href] = fname
+            count += 1
+
+    # Do same for children
+    for child in elem:
+        count += export_images(child, filename_fmt=filename_fmt,
+                               start_idx=(start_idx+count) )
+    return count
+
 header_str = """<?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
@@ -152,6 +195,9 @@ class SVGFileBase(object):
 
     def _set_coord(self,coord):
         self._coord = coord
+
+    def export_images(self,*args,**kwargs):
+        export_images(self._root,*args,**kwargs)
 
 class SVGFile(SVGFileBase):
     def __str__(self):
