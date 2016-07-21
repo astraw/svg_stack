@@ -25,7 +25,7 @@ import sys, re, os
 import base64
 from optparse import OptionParser
 
-VERSION = '0.0.1' # keep in sync with setup.py
+VERSION = '0.0.2' # keep in sync with setup.py
 
 UNITS = ['pt','px','in','mm','cm']
 PT2IN = 1.0/72.0
@@ -158,7 +158,15 @@ class Document(object):
             raise ValueError('No layout, cannot save.')
         accum = LayoutAccumulator(**kwargs)
         self._layout.render(accum,debug_boxes=debug_boxes)
-        if isinstance(fileobj,file):
+        
+        import io
+        try:
+            file_types = (file, io.IOBase)
+        
+        except NameError:
+            file_types = (io.IOBase,)
+        
+        if isinstance(fileobj, file_types):
             fd = fileobj
             close = False
         else:
