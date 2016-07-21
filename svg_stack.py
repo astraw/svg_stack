@@ -24,6 +24,7 @@ from lxml import etree # Ubuntu Karmic package: python-lxml
 import sys, re, os
 import base64
 from optparse import OptionParser
+from six import iteritems, string_types
 
 VERSION = '0.0.2' # keep in sync with setup.py
 
@@ -66,7 +67,7 @@ def convert_to_pixels( val, units):
 def fix_ids( elem, prefix, level=0 ):
     ns = '{http://www.w3.org/2000/svg}'
 
-    if isinstance(elem.tag,basestring) and elem.tag.startswith(ns):
+    if isinstance(elem.tag,string_types) and elem.tag.startswith(ns):
 
         tag = elem.tag[len(ns):]
 
@@ -175,7 +176,7 @@ class Document(object):
         buf = accum.tostring(pretty_print=True)
 
         fd.write(header_str)
-        fd.write( buf )
+        fd.write( buf.decode('utf-8') )
         if close:
             fd.close()
 
@@ -262,7 +263,7 @@ class LayoutAccumulator(object):
                  }
         for svgfile in self._svgfiles:
             origelem = svgfile.get_root()
-            for key,value in origelem.nsmap.iteritems():
+            for key,value in iteritems(origelem.nsmap):
                 if key in NSMAP:
                     assert value == NSMAP[key]
                     # Already in namespace dictionary
