@@ -27,6 +27,8 @@ from optparse import OptionParser
 from io import IOBase
 from six import string_types
 
+
+
 VERSION = '0.0.1' # keep in sync with setup.py
 
 UNITS = ['pt','px','in','mm','cm']
@@ -68,7 +70,7 @@ def convert_to_pixels( val, units):
 def fix_ids( elem, prefix, level=0 ):
     ns = '{http://www.w3.org/2000/svg}'
 
-    if isinstance(elem.tag,basestring) and elem.tag.startswith(ns):
+    if isinstance(elem.tag, string_types) and elem.tag.startswith(ns):
 
         tag = elem.tag[len(ns):]
 
@@ -106,10 +108,10 @@ def export_images( elem, filename_fmt='image%03d', start_idx=1 ):
     ns = '{http://www.w3.org/2000/svg}'
     href = '{http://www.w3.org/1999/xlink}href'
     count = 0
-    if isinstance(elem.tag,basestring) and elem.tag.startswith(ns):
+    if isinstance(elem.tag, string_types) and elem.tag.startswith(ns):
         tag = elem.tag[len(ns):]
         if tag=='image':
-            buf = etree.tostring(elem,pretty_print=True)
+            buf = etree.tostring(elem, pretty_print=True)
             im_data = elem.attrib[href]
             exts = ['png','jpeg']
             found = False
@@ -155,20 +157,20 @@ class Document(object):
         self._layout = None
     def setLayout(self,layout):
         self._layout = layout
-    def save(self,fileobj,debug_boxes=False,**kwargs):
+    def save(self, fileobj, debug_boxes=False, **kwargs):
         if self._layout is None:
             raise ValueError('No layout, cannot save.')
         accum = LayoutAccumulator(**kwargs)
-        self._layout.render(accum,debug_boxes=debug_boxes)
+        self._layout.render(accum, debug_boxes=debug_boxes)
         if isinstance(fileobj, IOBase):
             fd = fileobj
             close = False
         else:
-            fd = open(fileobj,mode='w')
+            fd = open(fileobj, mode='w')
             close = True
         buf = accum.tostring(pretty_print=True)
 
-        fd.write(header_str)
+        fd.write( header_str )
         fd.write( buf.decode() )
         if close:
             fd.close()
