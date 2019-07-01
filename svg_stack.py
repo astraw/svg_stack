@@ -24,6 +24,8 @@ from lxml import etree # Ubuntu Karmic package: python-lxml
 import sys, re, os
 import base64
 from optparse import OptionParser
+from io import IOBase
+from six import string_types
 
 VERSION = '0.0.1' # keep in sync with setup.py
 
@@ -158,7 +160,7 @@ class Document(object):
             raise ValueError('No layout, cannot save.')
         accum = LayoutAccumulator(**kwargs)
         self._layout.render(accum,debug_boxes=debug_boxes)
-        if isinstance(fileobj,file):
+        if isinstance(fileobj, IOBase):
             fd = fileobj
             close = False
         else:
@@ -167,7 +169,7 @@ class Document(object):
         buf = accum.tostring(pretty_print=True)
 
         fd.write(header_str)
-        fd.write( buf )
+        fd.write( buf.decode() )
         if close:
             fd.close()
 
@@ -254,7 +256,7 @@ class LayoutAccumulator(object):
                  }
         for svgfile in self._svgfiles:
             origelem = svgfile.get_root()
-            for key,value in origelem.nsmap.iteritems():
+            for key,value in origelem.nsmap.items():
                 if key in NSMAP:
                     assert value == NSMAP[key]
                     # Already in namespace dictionary
