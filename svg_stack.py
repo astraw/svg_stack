@@ -174,7 +174,12 @@ class Document(object):
             raise ValueError('No layout, cannot save.')
         accum = LayoutAccumulator(**kwargs)
         self._layout.render(accum, debug_boxes=debug_boxes)
-        if isinstance(fileobj, IOBase):
+        try:
+            isfile = isinstance(fileobj, file)
+        except NameError:
+            isfile = isinstance(fileobj, IOBase)
+
+        if isfile:
             fd = fileobj
             close = False
         else:
