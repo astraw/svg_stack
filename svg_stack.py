@@ -32,12 +32,12 @@ import logging
 log = logging.getLogger(__name__)
 
 
-
 VERSION = '0.0.1' # keep in sync with setup.py
 
 UNITS = ['pt','px','in','mm','cm']
 
 PX_PER_INCH = 96    # http://wiki.inkscape.org/wiki/index.php/Units_In_Inkscape
+                    # old inkscape versions are 90 or something else
 MM_PER_INCH = 25.4
 
 PT2IN = 1.0/72.0
@@ -50,7 +50,8 @@ PX2PT = 1.0/1.25
 relIRI_re = re.compile(r'url\(#(.*)\)')
 
 def get_unit_attr(value):
-    # coordinate handling from http://www.w3.org/TR/SVG11/coords.html#Units
+    """ coordinate handling from http://www.w3.org/TR/SVG11/coords.html#Units
+    """
     units = None # default (user)
     for unit_name in UNITS:
         if value.endswith(unit_name):
@@ -333,6 +334,7 @@ class LayoutAccumulator(object):
                     # inkscape hacks
                     if child.tag == '{http://www.w3.org/2000/svg}defs':
                         # copy into root_defs, not into sub-group
+                        log.debug("Copying element from {}".format(svgfile))
                         for subchild in child:
                             fix_ids( subchild, fix_id_prefix )
                             root_defs.append( subchild )
