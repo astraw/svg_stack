@@ -179,7 +179,6 @@ class Document(object):
             isfile = isinstance(fileobj, file)
         except NameError:
             isfile = isinstance(fileobj, IOBase)
-
         if isfile:
             fd = fileobj
             close = False
@@ -188,7 +187,7 @@ class Document(object):
             close = True
         buf = accum.tostring(pretty_print=True)
 
-        fd.write( header_str )
+        fd.write(header_str)
         fd.write( buf.decode() )
         if close:
             fd.close()
@@ -319,7 +318,7 @@ class LayoutAccumulator(object):
         for (fname_num, do_layout, svgfile) in work_list:
             origelem = svgfile.get_root()
 
-            fix_id_prefix = 'id%d:'%fname_num
+            fix_id_prefix = 'id%d:' % fname_num
             elem = etree.SubElement(root,'{http://www.w3.org/2000/svg}g')
 
             elem.attrib['id'] = 'id{}'.format(fname_num)
@@ -381,12 +380,10 @@ class LayoutAccumulator(object):
                 sy = height_px / vbheight
                 tx = translate_x - vbminx
                 ty = translate_y - vbminy
-                elem.attrib['transform'] = 'matrix(%s,0,0,%s,%s,%s)'%(
-                    sx,sy,tx,ty)
+                elem.attrib['transform'] = 'matrix(%s,0,0,%s,%s,%s)'%(sx, sy, tx, ty)
                 log.debug("matrix xform ({}, 0, 0, {}, {}, {})".format(sx, sy, tx, ty))
             else:
-                elem.attrib['transform'] = 'translate(%s,%s)'%(
-                    translate_x, translate_y)
+                elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
                 log.debug("Translating ({}, {})".format(translate_x, translate_y))
             root.append( elem )
         for elem in self._raw_elements:
