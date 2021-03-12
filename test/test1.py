@@ -46,8 +46,8 @@ if 0:
 
 # stack two files
 subprocess.check_call(
-    'svg_stack circle1.svg circle2.svg > circles.svg',
-    #'svg_stack circle.svg > circles.svg',
+    '../svg_stack.py circle1.svg circle2.svg > circles.svg',
+    #'../svg_stack.py circle.svg > circles.svg',
     shell=True)
 
 # check output

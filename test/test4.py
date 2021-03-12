@@ -4,7 +4,7 @@ import subprocess
 
 # "stack" a single Inkscape file
 subprocess.check_call(
-    'svg_stack inkscape-pattern.svg > inkscape-pattern-copy.svg',
+    '../svg_stack.py inkscape-pattern.svg > inkscape-pattern-copy.svg',
     shell=True)
 
 # Inkscape files don't pass xmllint -- don't test

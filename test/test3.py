@@ -4,7 +4,7 @@ import subprocess
 
 # stack two Inkscape generated files
 subprocess.check_call(
-    'svg_stack --direction=h --margin=100 red_ball.svg blue_triangle.svg > shapes_test.svg',
+    '../svg_stack.py --direction=h --margin=100 red_ball.svg blue_triangle.svg > shapes_test.svg',
     shell=True)
 
 # Inkscape files don't pass xmllint -- don't test
