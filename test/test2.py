@@ -19,7 +19,7 @@ f.savefig('circle.svg')
 
 # check output
 subprocess.check_call(
-    'xmllint --valid --nowarning --noout circle.svg',
+    'xmllint --nowarning --noout circle.svg',
     shell=True)
 
 if 0:
@@ -35,8 +35,8 @@ subprocess.check_call(
 
 # check output
 subprocess.check_call(
-    #'xmllint --valid --dtdvalid http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd --nowarning --noout circles.svg',
-    'xmllint --valid --nowarning --noout circles.svg',
+    #'xmllint --dtdvalid http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd --nowarning --noout circles.svg',
+    'xmllint --nowarning --noout circles.svg',
     shell=True)
 
 # check output
