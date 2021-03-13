@@ -11,6 +11,6 @@ subprocess.check_call(
 
 print 'You should manually verify that shapes_test.svg looks exactly the same as shapes.svg'
 
-subprocess.check_call(
-    'rasterizer shapes_test.svg',
-    shell=True)
+# subprocess.check_call(
+#     'rasterizer shapes_test.svg',
+#     shell=True)

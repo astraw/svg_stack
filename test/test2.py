@@ -39,7 +39,7 @@ subprocess.check_call(
     'xmllint --nowarning --noout circles.svg',
     shell=True)
 
-# check output
-subprocess.check_call(
-    'rasterizer circles.svg',
-    shell=True)
+# # check output
+# subprocess.check_call(
+#     'rasterizer circles.svg',
+#     shell=True)
