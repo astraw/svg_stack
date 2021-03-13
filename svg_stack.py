@@ -24,13 +24,25 @@ from lxml import etree # Ubuntu Karmic package: python-lxml
 import sys, re, os
 import base64
 from optparse import OptionParser
+from io import IOBase
+from six import string_types
+
+import logging
+
+log = logging.getLogger(__name__)
+
 
 VERSION = '0.0.1' # keep in sync with setup.py
 
 UNITS = ['pt','px','in','mm','cm']
+
+PX_PER_INCH = 96    # http://wiki.inkscape.org/wiki/index.php/Units_In_Inkscape
+                    # old inkscape versions are 90 or something else
+MM_PER_INCH = 25.4
+
 PT2IN = 1.0/72.0
 IN2PT = 72.0
-MM2PT = 72.0/25.4
+MM2PT = 72.0/25.4           # FIXME this should actually be 76.8
 CM2PT = 72.0/2.54
 PT2PX = 1.25
 PX2PT = 1.0/1.25
@@ -38,17 +50,19 @@ PX2PT = 1.0/1.25
 relIRI_re = re.compile(r'url\(#(.*)\)')
 
 def get_unit_attr(value):
-    # coordinate handling from http://www.w3.org/TR/SVG11/coords.html#Units
+    """ coordinate handling from http://www.w3.org/TR/SVG11/coords.html#Units
+    """
     units = None # default (user)
     for unit_name in UNITS:
         if value.endswith(unit_name):
+            log.debug("Units for {} are {}".format(value, unit_name))
             units = unit_name
             value = value[:-len(unit_name)]
             break
     val_float = float(value) # this will fail if units str not parsed
     return val_float, units
 
-def convert_to_pixels( val, units):
+def convert_to_pixels(val, units):
     if units == 'px' or units is None:
         val_px = val
     elif units == 'pt':
@@ -56,17 +70,18 @@ def convert_to_pixels( val, units):
     elif units == 'in':
         val_px = val*IN2PT*PT2PX
     elif units == 'mm':
-        val_px = val*MM2PT*PT2PX
+        val_px = val / MM_PER_INCH * PX_PER_INCH
     elif units == 'cm':
         val_px = val*CM2PT*PT2PX
     else:
         raise ValueError('unsupport unit conversion to pixels: %s'%units)
+    log.debug("{} {} = {} px".format(val, units, val_px))
     return val_px
 
 def fix_ids( elem, prefix, level=0 ):
     ns = '{http://www.w3.org/2000/svg}'
 
-    if isinstance(elem.tag,basestring) and elem.tag.startswith(ns):
+    if isinstance(elem.tag, string_types) and elem.tag.startswith(ns):
 
         tag = elem.tag[len(ns):]
 
@@ -104,10 +119,10 @@ def export_images( elem, filename_fmt='image%03d', start_idx=1 ):
     ns = '{http://www.w3.org/2000/svg}'
     href = '{http://www.w3.org/1999/xlink}href'
     count = 0
-    if isinstance(elem.tag,basestring) and elem.tag.startswith(ns):
+    if isinstance(elem.tag, string_types) and elem.tag.startswith(ns):
         tag = elem.tag[len(ns):]
         if tag=='image':
-            buf = etree.tostring(elem,pretty_print=True)
+            buf = etree.tostring(elem, pretty_print=True)
             im_data = elem.attrib[href]
             exts = ['png','jpeg']
             found = False
@@ -151,37 +166,43 @@ header_str = """<?xml version="1.0" standalone="no"?>
 class Document(object):
     def __init__(self):
         self._layout = None
+
     def setLayout(self,layout):
         self._layout = layout
-    def save(self,fileobj,debug_boxes=False,**kwargs):
+
+    def save(self, fileobj, debug_boxes=False, **kwargs):
         if self._layout is None:
             raise ValueError('No layout, cannot save.')
         accum = LayoutAccumulator(**kwargs)
-        self._layout.render(accum,debug_boxes=debug_boxes)
-        if isinstance(fileobj,file):
+        self._layout.render(accum, debug_boxes=debug_boxes)
+        try:
+            isfile = isinstance(fileobj, file)
+        except NameError:
+            isfile = isinstance(fileobj, IOBase)
+        if isfile:
             fd = fileobj
             close = False
         else:
-            fd = open(fileobj,mode='w')
+            fd = open(fileobj, mode='w')
             close = True
         buf = accum.tostring(pretty_print=True)
 
         fd.write(header_str)
-        fd.write( buf )
+        fd.write( buf.decode() )
         if close:
             fd.close()
 
+
 class SVGFileBase(object):
-    def __init__(self,fname):
+    def __init__(self, fname):
         self._fname = fname
         self._root = etree.parse(fname).getroot()
         if self._root.tag != '{http://www.w3.org/2000/svg}svg':
             raise ValueError('expected file to have root element <svg:svg>')
 
-        height, height_units = get_unit_attr(self._root.get('height'))
-        width, width_units = get_unit_attr(self._root.get('width'))
-        self._width_px = convert_to_pixels( width, width_units)
-        self._height_px = convert_to_pixels( height, height_units)
+        self._width_px = convert_to_pixels(*get_unit_attr(self._root.get('width')))
+        self._height_px = convert_to_pixels(*get_unit_attr(self._root.get('height')))
+        log.debug("Size of {} is {:.2f} x {:.2f} px".format(fname, self._width_px, self._height_px))
         self._orig_width_px = self._width_px
         self._orig_height_px = self._height_px
         self._coord = None # unassigned
@@ -190,27 +211,36 @@ class SVGFileBase(object):
         return self._root
 
     def get_size(self,min_size=None,box_align=None,level=None):
-        return Size(self._width_px,self._height_px)
+        return Size(self._width_px, self._height_px)
 
-    def _set_size(self,size):
-        self._width_px = size.width
-        self._height_px = size.height
+    def _set_size(self, size):
+        if self._width_px != size.width:
+            log.warning("Changing width of {} from {:.2f} to {:.2f}".format(
+                self._fname, self._width_px, size.width))
+            self._width_px = size.width
+        if self._height_px != size.height:
+            log.warning("Changing height of {} from {:.2f} to {:.2f}".format(
+                self._fname, self._height_px, size.height))
+            self._height_px = size.height
+            raise NotImplementedError('FU')
 
     def _set_coord(self,coord):
         self._coord = coord
 
-    def export_images(self,*args,**kwargs):
-        export_images(self._root,*args,**kwargs)
+    def export_images(self, *args, **kwargs):
+        export_images(self._root, *args, **kwargs)
+
 
 class SVGFile(SVGFileBase):
     def __str__(self):
         return 'SVGFile(%s)'%repr(self._fname)
 
+
 class SVGFileNoLayout(SVGFileBase):
     def __init__(self,fname,x=0,y=0):
         self._x_offset = x
         self._y_offset = y
-        super(SVGFileNoLayout,self).__init__(fname)
+        super(SVGFileNoLayout, self).__init__(fname)
 
     def _set_coord(self,coord):
         self._coord = (coord[0] + self._x_offset,
@@ -219,13 +249,14 @@ class SVGFileNoLayout(SVGFileBase):
     def __str__(self):
         return 'SVGFileNoLayout(%s)'%repr(self._fname)
 
+
 class LayoutAccumulator(object):
     def __init__(self):
         self._svgfiles = []
         self._svgfiles_no_layout = []
         self._raw_elements = []
 
-    def add_svg_file(self,svgfile):
+    def add_svg_file(self, svgfile):
         assert isinstance(svgfile,SVGFile)
         if svgfile in self._svgfiles:
             raise ValueError('cannot accumulate SVGFile instance twice')
@@ -242,9 +273,9 @@ class LayoutAccumulator(object):
 
     def tostring(self, **kwargs):
         root = self._make_finalized_root()
-        return etree.tostring(root,**kwargs)
+        return etree.tostring(root, **kwargs)
 
-    def _set_size(self,size):
+    def _set_size(self, size):
         self._size = size
 
     def _make_finalized_root(self):
@@ -254,7 +285,7 @@ class LayoutAccumulator(object):
                  }
         for svgfile in self._svgfiles:
             origelem = svgfile.get_root()
-            for key,value in origelem.nsmap.iteritems():
+            for key, value in origelem.nsmap.items():
                 if key in NSMAP:
                     assert value == NSMAP[key]
                     # Already in namespace dictionary
@@ -263,6 +294,7 @@ class LayoutAccumulator(object):
                     assert value == NSMAP[None]
                     # svg is the default namespace - don't insert again.
                     continue
+                log.debug("adding {} to NSMAP at {}".format(value, key))
                 NSMAP[key] = value
 
         root = etree.Element('{http://www.w3.org/2000/svg}svg',
@@ -286,9 +318,10 @@ class LayoutAccumulator(object):
         for (fname_num, do_layout, svgfile) in work_list:
             origelem = svgfile.get_root()
 
-            fix_id_prefix = 'id%d:'%fname_num
+            fix_id_prefix = 'id%d:' % fname_num
             elem = etree.SubElement(root,'{http://www.w3.org/2000/svg}g')
-            elem.attrib['id'] = 'id%d'%fname_num
+
+            elem.attrib['id'] = 'id{}'.format(fname_num)
 
             elem_sz = svgfile.get_size()
             width_px = elem_sz.width
@@ -300,6 +333,7 @@ class LayoutAccumulator(object):
                     # inkscape hacks
                     if child.tag == '{http://www.w3.org/2000/svg}defs':
                         # copy into root_defs, not into sub-group
+                        log.debug("Copying element from {}".format(svgfile))
                         for subchild in child:
                             fix_ids( subchild, fix_id_prefix )
                             root_defs.append( subchild )
@@ -318,10 +352,16 @@ class LayoutAccumulator(object):
             translate_y = svgfile._coord[1]
             if do_layout:
                 if svgfile._orig_width_px != width_px:
+                    log.info("svgfile: {} id {}".format(svgfile, fix_id_prefix))
+                    log.error("orig width {:.2f} != width_px {:.2f}".format(
+                        svgfile._orig_width_px, width_px))
                     raise NotImplementedError('rescaling width not implemented '
                                               '(hint: set alignment on file %s)'%(
                         svgfile,))
                 if svgfile._orig_height_px != height_px:
+                    log.info("svgfile: {} id {}".format(svgfile, fix_id_prefix))
+                    log.error("orig height {:.2f} != height_px {:.2f}".format(
+                        svgfile._orig_height_px, height_px))
                     raise NotImplementedError('rescaling height not implemented '
                                               '(hint: set alignment on file %s)'%(
                         svgfile,))
@@ -340,11 +380,11 @@ class LayoutAccumulator(object):
                 sy = height_px / vbheight
                 tx = translate_x - vbminx
                 ty = translate_y - vbminy
-                elem.attrib['transform'] = 'matrix(%s,0,0,%s,%s,%s)'%(
-                    sx,sy,tx,ty)
+                elem.attrib['transform'] = 'matrix(%s,0,0,%s,%s,%s)'%(sx, sy, tx, ty)
+                log.debug("matrix xform ({}, 0, 0, {}, {}, {})".format(sx, sy, tx, ty))
             else:
-                elem.attrib['transform'] = 'translate(%s,%s)'%(
-                    translate_x, translate_y)
+                elem.attrib['transform'] = 'translate(%s,%s)'%(translate_x, translate_y)
+                log.debug("Translating ({}, {})".format(translate_x, translate_y))
             root.append( elem )
         for elem in self._raw_elements:
             root.append(elem)
@@ -353,6 +393,7 @@ class LayoutAccumulator(object):
         root.attrib["height"] = repr(self._size.height)
 
         return root
+
 
 # ------------------------------------------------------------------
 class Size(object):
@@ -382,20 +423,21 @@ class Layout(object):
         if parent is not None:
             raise NotImplementedError('')
 
+
 class BoxLayout(Layout):
     def __init__(self, direction, parent=None):
-        super(BoxLayout,self).__init__(parent=parent)
+        super(BoxLayout, self).__init__(parent=parent)
         self._direction = direction
         self._items = []
         self._contents_margins = 0 # around edge of box
         self._spacing = 0 # between items in box
-        self._coord = (0,0) # default
+        self._coord = (0, 0) # default
         self._size = None # uncalculated
 
     def _set_coord(self,coord):
         self._coord = coord
 
-    def render(self,accum, min_size=None, level=0, debug_boxes=0):
+    def render(self, accum, min_size=None, level=0, debug_boxes=0):
         size = self.get_size(min_size=min_size)
         if level==0:
             # set document size if top level
@@ -412,7 +454,7 @@ class BoxLayout(Layout):
             debug_box.attrib['height']=repr(sz.height)
             accum.add_raw_element(debug_box)
 
-        for (item,stretch,alignment,xml) in self._items:
+        for (item, stretch, alignment, xml) in self._items:
             if isinstance( item, SVGFile ):
                 accum.add_svg_file(item)
 
@@ -456,12 +498,12 @@ class BoxLayout(Layout):
                 extra.append(xml)
                 accum.add_raw_element(extra)
 
-    def get_size(self, min_size=None, box_align=0, level=0 ):
+    def get_size(self, min_size=None, box_align=0, level=0):
         cum_dim = 0 # size along layout direction
         max_orth_dim = 0 # size along other direction
 
         if min_size is None:
-            min_size = Size(0,0)
+            min_size = Size(0, 0)
 
         # Step 1: calculate required size along self._direction
         if self._direction in [LeftToRight, RightToLeft]:
@@ -476,13 +518,13 @@ class BoxLayout(Layout):
         cum_dim += self._contents_margins # first margin
         item_sizes = []
         for item_number,(item,stretch,alignment,xml) in enumerate(self._items):
-            if isinstance(item,SVGFileNoLayout):
-                item_size = Size(0,0)
+            if isinstance(item, SVGFileNoLayout):
+                item_size = Size(0, 0)
             else:
                 item_size = item.get_size(min_size=dim_min_size, box_align=alignment,level=level+1)
             item_sizes.append( item_size )
 
-            if isinstance(item,SVGFileNoLayout):
+            if isinstance(item, SVGFileNoLayout):
                 # no layout for this file
                 continue
 
@@ -542,7 +584,7 @@ class BoxLayout(Layout):
                     new_dim_length = old_item_size.width + dim_unfilled_length
                 new_item_size = Size( orth_dim, new_dim_length )
 
-            if isinstance(item,SVGFileNoLayout):
+            if isinstance(item, SVGFileNoLayout):
                 item_size = Size(0,0)
             else:
                 item_size = item.get_size(min_size=new_item_size, box_align=alignment,level=level+1)
@@ -560,6 +602,8 @@ class BoxLayout(Layout):
             item_pos, final_item_size = self._calc_box( child_box_coord, child_box_size,
                                                         item_size,
                                                         alignment )
+            # FIXME : don't call internal funtion on another class
+            # FIXME : get_size should not set size
             item._set_coord( item_pos )
             item._set_size( final_item_size )
 
@@ -628,11 +672,11 @@ class BoxLayout(Layout):
         self._spacing = spacing
 
     def addSVG(self, svg_file, stretch=0, alignment=0, xml=None):
-        if not isinstance(svg_file,SVGFile):
+        if not isinstance(svg_file, SVGFile):
             svg_file = SVGFile(svg_file)
         if xml is not None:
             xml = etree.XML(xml)
-        self._items.append((svg_file,stretch,alignment,xml))
+        self._items.append((svg_file, stretch, alignment, xml))
 
     def addSVGNoLayout(self, svg_file, x=0, y=0, xml=None):
         if not isinstance(svg_file,SVGFileNoLayout):
@@ -644,18 +688,20 @@ class BoxLayout(Layout):
         self._items.append((svg_file,stretch,alignment,xml))
 
     def addLayout(self, layout, stretch=0):
-        assert isinstance(layout,Layout)
+        assert isinstance(layout, Layout)
         alignment=0 # always expand a layout
         xml=None
-        self._items.append((layout,stretch,alignment,xml))
+        self._items.append((layout, stretch, alignment, xml))
+
 
 class HBoxLayout(BoxLayout):
     def __init__(self, parent=None):
-        super(HBoxLayout,self).__init__(LeftToRight,parent=parent)
+        super(HBoxLayout, self).__init__(LeftToRight, parent=parent)
+
 
 class VBoxLayout(BoxLayout):
     def __init__(self, parent=None):
-        super(VBoxLayout,self).__init__(TopToBottom,parent=parent)
+        super(VBoxLayout, self).__init__(TopToBottom, parent=parent)
 
 # ------------------------------------------------------------------
 
@@ -703,7 +749,7 @@ stdout.
         layout = HBoxLayout()
 
     for fname in fnames:
-        layout.addSVG(fname,alignment=AlignCenter)
+        layout.addSVG(fname, alignment=AlignCenter)
 
     layout.setSpacing(margin_px)
     doc.setLayout(layout)
