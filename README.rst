@@ -76,7 +76,7 @@ Command-line usage
 
 ::
 
-  Usage: svg_stack FILE1 [FILE2] [...] [options]
+  Usage: svg_stack.py FILE1 [FILE2] [...] [options]
 
   concatenate SVG files
 
