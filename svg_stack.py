@@ -42,7 +42,6 @@ MM_PER_INCH = 25.4
 
 PT2IN = 1.0/72.0
 IN2PT = 72.0
-MM2PT = 72.0/25.4           # FIXME this should actually be 76.8
 CM2PT = 72.0/2.54
 PT2PX = 1.25
 PX2PT = 1.0/1.25
