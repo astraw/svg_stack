@@ -32,7 +32,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-VERSION = '0.0.1' # keep in sync with setup.py
+VERSION = '0.1.0' # keep in sync with setup.py
 
 UNITS = ['pt','px','in','mm','cm']
 
