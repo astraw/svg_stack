@@ -51,6 +51,7 @@ jobs:
         python test3.py
         python test4.py
         python test5.py
+        python test-issue8.py
 
     # - name: Test with pytest
     #   run: |
