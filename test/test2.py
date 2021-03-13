@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import print_function
+
 import matplotlib
 matplotlib.use("svg")
 import matplotlib.pyplot as plt
@@ -23,9 +25,9 @@ subprocess.check_call(
     shell=True)
 
 if 0:
-    print 'done checking circle.svg'
+    print('done checking circle.svg')
     for i in range(20):
-        print
+        print()
 
 # stack two files
 subprocess.check_call(
