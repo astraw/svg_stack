@@ -224,7 +224,6 @@ class SVGFileBase(object):
             log.warning("Changing height of {} from {:.2f} to {:.2f}".format(
                 self._fname, self._height_px, size.height))
             self._height_px = size.height
-            raise NotImplementedError('FU')
 
     def _set_coord(self,coord):
         self._coord = coord
