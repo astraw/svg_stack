@@ -8,7 +8,7 @@ svg_stack combines multiple SVG elements into a single SVG element. It
 can be called from the command line (less flexible) or called from the
 Python interface (more flexible).
 
-This tool exists primarily exists to automatically composite SVG files
+This tool primarily exists to automatically composite SVG files
 into a single SVG file that remains compatible with Inkscape_. If
 compatibility with Inkscape is not required, one can create an svg
 file with multiple, nested <svg> elements. Inkscape, however, doesn't
