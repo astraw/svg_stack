@@ -70,6 +70,8 @@ Meta-data
  * Contact: strawman@astraw.com
  * Homepage: http://github.com/astraw/svg_stack
  * Issue tracker: http://github.com/astraw/svg_stack/issues
+ * pypi link: https://pypi.org/project/svg-stack/
+
 
 Command-line usage
 ------------------
